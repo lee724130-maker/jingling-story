@@ -2,6 +2,8 @@
 
 原创怪物收集养成游戏 · 网页端 + 微信小程序端（规划中）
 
+**GitHub 仓库**：https://github.com/lee724130-maker/jingling-story （私有）
+
 当前阶段：**第三人称 3D 第一版垂直切片**（阶段 1/2 验证），React + TypeScript 前端 / NestJS 后端联调 Demo。
 
 ## 技术栈

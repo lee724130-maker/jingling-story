@@ -4,11 +4,13 @@ import { Injectable } from '@nestjs/common';
 import { store } from '../common/store';
 import {
   ERR, SaveData, Monster, BattleSettleDto, CaptureSettleDto, SettleResult,
-  QuestClaimDto, QuestClaimResult
+  QuestClaimDto, QuestClaimResult, ChooseStarterDto, ChooseStarterResult,
+  ShopBuyDto, ShopBuyResult
 } from '../../../shared/types';
 import { seededRandom, captureRate, grantExp, makeMonster, checksum } from '../../../shared/rules';
 import { MONSTERS } from '../../../shared/gamedata';
 import { QUESTS, questFlag } from '../../../shared/quests';
+import { STARTER_CHOICES, SHOP_ITEMS } from '../../../shared/maps';
 
 type ExpEventLike = { type: string; text: string };
 
@@ -180,6 +182,63 @@ export class GameService {
     return {
       code: ERR.OK, message: 'ok',
       data: { questId: def.id, reward: r, version: written.version, data: written.data }
+    };
+  }
+
+  /** 选择初始伙伴：三选一白名单校验，服务端生成精灵（性别/性格由种子随机），防重复选择。
+   *  老账号（已有精灵）也允许补选一次，但已有队伍时不覆盖。 */
+  async chooseStarter(uid: number, dto: ChooseStarterDto): Promise<{ code: number; message: string; data: ChooseStarterResult | null }> {
+    if (!uid || !dto || !dto.species) return { code: ERR.BAD_PARAMS, message: '参数不完整', data: null };
+    if (!STARTER_CHOICES.some(c => c.species === dto.species)) {
+      return { code: ERR.BAD_PARAMS, message: '无效的初始伙伴', data: null };
+    }
+    if (dto.gender !== 'male' && dto.gender !== 'female') {
+      return { code: ERR.BAD_PARAMS, message: '无效性别', data: null };
+    }
+    const row = await store.getSave(uid);
+    if (!row) return { code: ERR.BAD_PARAMS, message: '存档不存在', data: null };
+    const save: SaveData = JSON.parse(JSON.stringify(row.data));
+
+    if (save.progress.flags.includes('story:starter_chosen') || save.team.length > 0) {
+      return { code: ERR.DUPLICATE_SETTLE, message: '已选择过初始伙伴', data: null };
+    }
+
+    const seed = Math.floor(Math.random() * 1e9);
+    const monster = makeMonster(dto.species, 5, seededRandom(seed), { gender: dto.gender });
+    save.team.push(monster);
+    if (!save.pokedex.seen.includes(dto.species)) save.pokedex.seen.push(dto.species);
+    if (!save.pokedex.caught.includes(dto.species)) save.pokedex.caught.push(dto.species);
+    save.progress.flags.push('story:starter_chosen');
+    save.progress.flags = save.progress.flags.filter(f => f !== 'story:need_starter');
+
+    const nextVersion = row.version + 1;
+    const written = await store.putSave(uid, nextVersion, save);
+    return {
+      code: ERR.OK, message: 'ok',
+      data: { monster, version: written.version, data: written.data }
+    };
+  }
+
+  /** 商店购买：服务端按 SHOP_ITEMS 权威定价，校验余额后扣钱加道具 */
+  async shopBuy(uid: number, dto: ShopBuyDto): Promise<{ code: number; message: string; data: ShopBuyResult | null }> {
+    if (!uid || !dto?.item || !dto.count) return { code: ERR.BAD_PARAMS, message: '参数不完整', data: null };
+    const item = SHOP_ITEMS[dto.item];
+    if (!item) return { code: ERR.BAD_PARAMS, message: '商品不存在', data: null };
+    if (dto.count < 1 || dto.count > 99) return { code: ERR.BAD_PARAMS, message: '数量非法', data: null };
+
+    const row = await store.getSave(uid);
+    if (!row) return { code: ERR.BAD_PARAMS, message: '存档不存在', data: null };
+    const save: SaveData = JSON.parse(JSON.stringify(row.data));
+    const cost = item.price * dto.count;
+    if (save.resources.coins < cost) return { code: ERR.BAD_PARAMS, message: '金币不足', data: null };
+
+    save.resources.coins -= cost;
+    save.bag[dto.item] = (save.bag[dto.item] || 0) + dto.count;
+    const nextVersion = row.version + 1;
+    const written = await store.putSave(uid, nextVersion, save);
+    return {
+      code: ERR.OK, message: 'ok',
+      data: { item: dto.item, count: dto.count, cost, version: written.version, data: written.data }
     };
   }
 }

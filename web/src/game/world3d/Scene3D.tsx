@@ -102,20 +102,20 @@ function WildMonsters({ engine, tick }: { engine: GameEngine; tick: number }) {
   return <>{engine.state.wilds.map(w => <WildMonster key={w.id} wild={w} engine={engine} />)}</>;
 }
 
-/* ---------- 程序化树木 ---------- */
-function Trees() {
+/* ---------- 程序化树木（数量按地图配置） ---------- */
+function Trees({ count }: { count: number }) {
   const trees = useMemo(() => {
     const arr: {x:number;z:number;s:number}[] = [];
     let seed = 42;
     const rnd = () => { seed = (seed*1664525+1013904223)>>>0; return seed/4294967296; };
-    for (let i = 0; i < 90; i++) {
+    for (let i = 0; i < count; i++) {
       const x = (rnd()-0.5)*worldSpanX(PX_W)*1.05;
       const z = (rnd()-0.5)*worldSpanY(PX_H)*1.05;
       const s = 0.7 + rnd()*0.7;
       arr.push({x,z,s});
     }
     return arr;
-  }, []);
+  }, [count]);
   return <>{trees.map((t,i) => (
     <group key={i} position={[t.x, 0, t.z]} scale={t.s}>
       <mesh position={[0,0.5,0]} castShadow><cylinderGeometry args={[0.1,0.14,1,6]} /><meshLambertMaterial color="#7a5230" /></mesh>
@@ -125,8 +125,42 @@ function Trees() {
   ))}</>;
 }
 
+/* ---------- 新手村建筑：几栋程序化小屋 + 招牌（AI 场景图之外用几何体补齐） ---------- */
+function VillageBuildings() {
+  const houses = useMemo(() => {
+    const W = worldSpanX(PX_W), H = worldSpanY(PX_H);
+    return [
+      { x: -W*0.34, z: -H*0.28, c: '#d9885a' },  // 商店（暖橙屋顶）
+      { x:  W*0.30, z: -H*0.30, c: '#7b9fd6' },  // 村长屋（蓝屋顶）
+      { x: -W*0.30, z:  H*0.24, c: '#9b7fc4' },  // 向导屋（紫屋顶）
+      { x:  W*0.32, z:  H*0.22, c: '#c9a25a' }   // 民宅（黄屋顶）
+    ];
+  }, []);
+  return <>{houses.map((h, i) => (
+    <group key={i} position={[h.x, 0, h.z]}>
+      <mesh position={[0, 0.75, 0]} castShadow><boxGeometry args={[2.4, 1.5, 2.0]} /><meshLambertMaterial color="#efe3c8" /></mesh>
+      <mesh position={[0, 1.65, 0]} castShadow><coneGeometry args={[1.9, 1.0, 4]} /><meshLambertMaterial color={h.c} /></mesh>
+      <mesh position={[0, 0.5, 1.02]}><boxGeometry args={[0.6, 1.0, 0.06]} /><meshLambertMaterial color="#8a5a34" /></mesh>
+      <mesh position={[0.75, 0.85, 1.02]}><boxGeometry args={[0.4, 0.4, 0.06]} /><meshLambertMaterial color="#bfe6f5" /></mesh>
+    </group>
+  ))}</>;
+}
+
+/* ---------- 出口传送门标识（新手村上方 / 草原返回点） ---------- */
+function ExitPortal({ color }: { color: string }) {
+  return <group position={[0, 0, -worldSpanY(PX_H)*0.42]}>
+    <mesh position={[0, 1.1, 0]}>
+      <torusGeometry args={[1.0, 0.14, 8, 24]} />
+      <meshLambertMaterial color={color} emissive={color} emissiveIntensity={0.35} />
+    </mesh>
+    <Billboard position={[0, 2.5, 0]}>
+      <Text fontSize={0.42} color="#ffffff" outlineWidth={0.05} outlineColor="#333">出口</Text>
+    </Billboard>
+  </group>;
+}
+
 /* ---------- 地面：AI 草地纹理 + 边界水面 ---------- */
-function Ground() {
+function Ground({ tint, useTextureMap }: { tint: string; useTextureMap: boolean }) {
   const grass = useTexture(ART.sceneGrass);
   grass.wrapS = grass.wrapT = THREE.RepeatWrapping;
   grass.repeat.set(6, 4);
@@ -137,12 +171,14 @@ function Ground() {
     <>
       <mesh rotation={[-Math.PI/2,0,0]} receiveShadow>
         <planeGeometry args={[W, H]} />
-        <meshLambertMaterial map={grass} />
+        {useTextureMap
+          ? <meshLambertMaterial map={grass} />
+          : <meshLambertMaterial color={tint} />}
       </mesh>
       {/* 外围缓冲地面（有限范围，不遮挡天空远景） */}
       <mesh rotation={[-Math.PI/2,0,0]} position={[0,-0.03,0]} receiveShadow>
         <planeGeometry args={[W*1.5, H*1.6]} />
-        <meshLambertMaterial color="#4f9c47" />
+        <meshLambertMaterial color={useTextureMap ? '#4f9c47' : tint} />
       </mesh>
       {/* 边界水面 */}
       {[
@@ -191,7 +227,11 @@ function FollowCamera({ engine }: { engine: GameEngine }) {
 }
 
 /* ---------- 场景根 ---------- */
-function World({ engine, wildTick }: { engine: GameEngine; wildTick: number }) {
+function World({ engine, wildTick, mapId }: { engine: GameEngine; wildTick: number; mapId: string }) {
+  const isVillage = mapId === 'qingya';
+  const cfg = isVillage
+    ? { ground: '#8fce74', trees: 26, portal: '#f0b95c' }
+    : { ground: '#6cbf5a', trees: 90, portal: '#5fd0a6' };
   return (
     <>
       <color attach="background" args={['#8fd3f4']} />
@@ -200,10 +240,11 @@ function World({ engine, wildTick }: { engine: GameEngine; wildTick: number }) {
       <directionalLight position={[10, 18, 8]} intensity={1.1} castShadow />
       <Suspense fallback={<mesh rotation={[-Math.PI/2,0,0]}><planeGeometry args={[200,200]} /><meshLambertMaterial color="#6cbf5a" /></mesh>}>
         <Sky />
-        <Ground />
+        <Ground key={mapId} tint={cfg.ground} useTextureMap={!isVillage} />
       </Suspense>
-      <Trees />
-      <WildMonsters engine={engine} tick={wildTick} />
+      <Trees count={cfg.trees} />
+      {isVillage ? <VillageBuildings /> : <WildMonsters engine={engine} tick={wildTick} />}
+      <ExitPortal color={cfg.portal} />
       <Follower engine={engine} />
       <Player engine={engine} />
       <FollowCamera engine={engine} />
@@ -212,10 +253,11 @@ function World({ engine, wildTick }: { engine: GameEngine; wildTick: number }) {
 }
 
 export default function Scene3D({ engine, wildTick }: { engine: GameEngine; wildTick: number }) {
+  const mapId = engine.save.progress.map || 'qingya';
   return (
-    <Canvas shadows dpr={[1, 1.5]} camera={{ fov: 55, position: [0, 9.5, 11], near: 0.1, far: 200 }}
+    <Canvas key={mapId} shadows dpr={[1, 1.5]} camera={{ fov: 55, position: [0, 9.5, 11], near: 0.1, far: 200 }}
       gl={{ antialias: true, powerPreference: 'high-performance' }}>
-      <World engine={engine} wildTick={wildTick} />
+      <World engine={engine} wildTick={wildTick} mapId={mapId} />
     </Canvas>
   );
 }

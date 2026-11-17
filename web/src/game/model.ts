@@ -14,15 +14,25 @@ export function newMonster(speciesId: number, level: number, opts?: Partial<Mons
 }
 
 export function createNewSave(name: string, gender: Gender): SaveData {
+  // 新账号：队伍为空，主线从「找村长选初始伙伴」开始；不再默认送精灵
   return {
     meta: { configVersion: 1, createdAt: Date.now(), playSeconds: 0 },
     profile: { name, gender, steps: 0, battles: 0, wins: 0 },
     resources: { coins: 100, gems: 0 },
-    team: [newMonster(START_PARTNER, 5, { gender })],
+    team: [],
     storage: [],
     bag: { ball: START_BALLS, herb: START_HERBS },
-    progress: { map: 'qingya', flags: ['tutorial_done'] },
-    pokedex: { seen: [START_PARTNER], caught: [START_PARTNER] },
+    progress: { map: 'qingya', flags: ['tutorial_done', 'story:need_starter'] },
+    pokedex: { seen: [], caught: [] },
     lastHeal: { x: 0, y: 0 }
   };
+}
+
+/** 老存档兼容：已有精灵的账号补上主线完成标记，跳过选宠流程 */
+export function migrateSave(save: SaveData): SaveData {
+  if (save.team.length > 0 && !save.progress.flags.includes('story:starter_chosen')) {
+    save.progress.flags.push('story:starter_chosen');
+  }
+  if (!save.progress.map) save.progress.map = 'qingya';
+  return save;
 }

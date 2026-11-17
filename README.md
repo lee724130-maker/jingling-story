@@ -4,7 +4,7 @@
 
 **GitHub 仓库**：https://github.com/lee724130-maker/jingling-story （私有）
 
-当前阶段：**第三人称 3D 第一版垂直切片**（阶段 1/2 验证），React + TypeScript 前端 / NestJS 后端联调 Demo。
+当前阶段：**第三人称 3D 第一版 + 双区域新手村/野外副本**（阶段 1/2/4 部分完成），React + TypeScript 前端 / NestJS 后端联调 Demo。
 
 ## 技术栈
 
@@ -14,7 +14,7 @@
 | 3D 渲染 | Three.js + React Three Fiber + Drei（第三人称场景 / 2.5D 广告牌）|
 | 后端 | NestJS 10 + TypeScript |
 | 数据库 | MySQL 独立库 `jingling_story`（`STORAGE_MODE=mysql`，可切 `local`）|
-| 共享 | `shared/types.ts` 共用类型 · `shared/gamedata.ts` 共用配置 · `shared/rules.ts` 共用战斗规则 · `shared/quests.ts` 共用任务定义 |
+| 共享 | `shared/types.ts` 类型 · `shared/gamedata.ts` 配置 · `shared/rules.ts` 战斗规则 · `shared/quests.ts` 任务 · `shared/maps.ts` 多地图/NPC/商店 |
 | 美术 | AI 立绘（男/女训练师、精灵群像裁切头像、草原地面、天空远景）+ 程序化补齐（树木/水面/地形）+ Canvas 2D 战斗特效 |
 | 认证 | 本地测试账号 + JWT（微信 UnionID 登录后补）|
 
@@ -24,7 +24,7 @@
 精灵物语/
 ├── web/         # React 前端（Vite，端口 5180）
 │   └── src/
-│       ├── components/        # TitleScreen / BattleUI / SummonUI / Panel / QuestPanel / SpiritArt
+│       ├── components/        # TitleScreen / BattleUI / SummonUI / Panel / QuestPanel / StarterPanel / ShopPanel / SpiritArt
 │       ├── game/
 │       │   ├── world3d/       # 第三人称 3D 场景：coords / useBillboardTexture / Scene3D
 │       │   ├── engine.ts      # 游戏引擎：野怪游荡 / 投球过场 / 战斗状态机 / 权威结算接入
@@ -34,7 +34,7 @@
 │       └── public/art/        # AI 素材：trainer_male/female / spirits / scene_grass / scene_sky
 ├── server/      # NestJS 后端（端口 3000）
 │   └── src/{auth,player,game,common}
-├── shared/      # 前后端共享：types / gamedata / rules / quests
+├── shared/      # 前后端共享：types / gamedata / rules / quests / maps
 └── docs/        # MySQL 配置、E2E 脚本、AI 素材生成脚本
 ```
 
@@ -50,6 +50,7 @@ npm run dev:web             # 终端2：前端 http://localhost:5180
 ```
 
 浏览器打开 http://localhost:5180，输入训练师名字 → 选男女形象 → 进入游戏。
+新流程：在青芽村找村长对话 → 三选一初始伙伴 → 走向地图上方出口进入大草原捕捉精灵。走近 NPC/出口按空格交互。
 
 Vite 已配 `/api` 代理到后端 3000，前端 API 请求走同源。
 
@@ -62,6 +63,20 @@ Vite 已配 `/api` 代理到后端 3000，前端 API 请求走同源。
 - **2.5D 广告牌角色**：AI 生成的人物/精灵立绘作为朝向相机的贴图平面，运行时抠图（浅绿背景/白底转透明），保留 AI 画风并呈现浮动/待机动效
 - 玩家身后跟随出战精灵；地图上 6 只野怪游荡、浮动、发现玩家显示警戒感叹号
 - 3D 世界作为底层，战斗/投球过场用 2D Canvas 特效层叠加，兼顾画面表现与开发效率
+
+### 双区域地图：新手村 + 野外副本
+
+- **区域数据驱动**：地图集中在 `shared/maps.ts` 前后端共用，`SaveData.progress.map` 记录当前区域；地把单地图硬编码重构为多地图派生（engine 的 cellAt/findStart/野怪生成全按当前地图动态计算）
+- **青芽村（新手村）**：开阔少障碍、程序化小屋建筑，无野生精灵；含村长木老（主线）、商店老板阿布、向导小岚、冒险任务板、疗伤石碑；村内上方有金色传送门出口
+- **大草原（野外副本）**：AI 草地纹理 + 密集树木 + 水面边界，6 只可见野怪游荡，绿色传送门出口返回村庄；走进出口格子即自动切换区域，切图后落点重置、野怪重建、短暂冷却防误触
+- **3D 场景按区域切换**：村庄显示建筑与纯色草地（26 棵树）、草原显示 AI 纹理与野怪（90 棵树），`Canvas key=mapId` 强制重建场景
+
+### 新手村基础设施与主线
+
+- **三选一初始伙伴**：新账号队伍为空，主线标记 `story:need_starter`；与村长对话后弹出三选一面板（焰苗兽/潮泡兽/木芽兽 = 火/水/木），`POST /api/game/starter/choose` 服务端白名单校验 + 种子随机生成精灵（性别/性格），防重复选择（3003）；老账号（已有精灵）自动迁移跳过选宠
+- **商店系统**：`POST /api/game/shop/buy` 服务端按 `SHOP_ITEMS` 权威定价（灵兽球 ◈20 / 活力草 ◈15），校验余额扣款加道具，金币不足返 3001
+- **NPC 交互**：走近 NPC/出口按空格或 E 交互，HUD 弹出交互提示；村长主线对话、商店面板、任务板面板、向导致路对话
+- **对话系统**：Dialog 组件支持结束后回调（onDone），村长对话结束自动打开三选一面板
 
 ### 战斗演出（AI 精灵 + 属性技能特效）
 
@@ -107,6 +122,7 @@ Vite 已配 `/api` 代理到后端 3000，前端 API 请求走同源。
 - `docs/_e2e_3d.js`：第三人称 3D E2E（WebGL 渲染 / WASD 移动 / 野怪存在 / 可进入 summon+battle / 零错误）
 - `docs/_e2e_battle.js`：战斗演出 E2E（AI 精灵贴图渲染 / 技能特效触发与进度 / 横幅 / 结束后清除 / 零错误）
 - `docs/_e2e_quest.js`：任务系统 E2E（面板渲染 / 权威领奖金币+30 / 防重复 3003 / 未完成 3001 / 刷新持久化 / 零错误）
+- `docs/_e2e_village.js`：新手村系统 E2E（19 项全过：空队伍开局 / 无野怪 / 三选一 / 防重复选宠 / 商店扣款 / 金币不足 / 场景往返切换 / 野怪随区域增减 / 刷新持久化 / 零错误）
 
 ## 后续
 
@@ -114,7 +130,7 @@ Vite 已配 `/api` 代理到后端 3000，前端 API 请求走同源。
 - 人物/精灵由 2.5D 广告牌升级为真 3D 骨骼模型
 - 微信开放平台 UnionID 登录（资质就绪后）
 - 微信小游戏端适配：架构已定案 Cocos Creator 3.x 重做表现层，详见 `docs/双端适配方案.md`
-- 内容扩充：更多地图/精灵/进化链/音效（任务系统与新手引导已完成）
+- 内容扩充：更多野外副本地图/精灵/进化链/音效；主线任务链扩充（当前仅"选初始伙伴"一步，村长/向导有对话但无后续剧情）
 - summon 过场偶发黑屏的精确排查（当前已加渐变兜底）
 
 ## 说明

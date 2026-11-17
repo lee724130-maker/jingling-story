@@ -1,5 +1,5 @@
 /* API 客户端：登录 + 存档（对接 NestJS 后端） */
-import type { ApiResponse, LoginResult, SaveData, SaveResult, BattleSettleDto, CaptureSettleDto, SettleResult, QuestClaimDto, QuestClaimResult } from '@shared/types';
+import type { ApiResponse, LoginResult, SaveData, SaveResult, BattleSettleDto, CaptureSettleDto, SettleResult, QuestClaimDto, QuestClaimResult, ChooseStarterDto, ChooseStarterResult, ShopBuyDto, ShopBuyResult } from '@shared/types';
 
 const TOKEN_KEY = 'jingling_token';
 const API_BASE = ''; // 同源，Vite 代理到后端
@@ -44,6 +44,16 @@ export const api = {
   /** 任务奖励领取（服务端权威校验条件） */
   async claimQuest(dto: QuestClaimDto): Promise<{ ok: boolean; result: QuestClaimResult | null; message: string }> {
     const r = await request<QuestClaimResult>('/api/game/quest/claim', { method: 'POST', body: JSON.stringify(dto) });
+    return { ok: r.code === 0, result: r.data, message: r.message };
+  },
+  /** 选择初始伙伴（服务端权威生成） */
+  async chooseStarter(dto: ChooseStarterDto): Promise<{ ok: boolean; result: ChooseStarterResult | null; message: string }> {
+    const r = await request<ChooseStarterResult>('/api/game/starter/choose', { method: 'POST', body: JSON.stringify(dto) });
+    return { ok: r.code === 0, result: r.data, message: r.message };
+  },
+  /** 商店购买（服务端权威定价） */
+  async shopBuy(dto: ShopBuyDto): Promise<{ ok: boolean; result: ShopBuyResult | null; message: string }> {
+    const r = await request<ShopBuyResult>('/api/game/shop/buy', { method: 'POST', body: JSON.stringify(dto) });
     return { ok: r.code === 0, result: r.data, message: r.message };
   }
 };

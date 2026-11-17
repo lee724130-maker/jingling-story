@@ -132,6 +132,10 @@ kbd{ display:inline-block; min-width:22px; text-align:center; padding:2px 6px; b
 .center-note{ color:var(--muted); font-size:13px; line-height:2; }
 .err{ color:#e2604c; font-size:12px; margin-top:8px; }
 /* 任务系统：入口红点 + 任务卡片 */
+.npc-hint{ position:absolute; bottom:44px; left:50%; transform:translateX(-50%); background:rgba(12,22,33,.94);
+  border:1px solid var(--accent); padding:8px 18px; border-radius:20px; font-size:13px; z-index:8;
+  box-shadow:0 6px 20px rgba(0,0,0,.35); animation:captionPop .2s ease-out; }
+.npc-hint b{ color:var(--accent2); }
 .hud-quest{ pointer-events:auto; position:relative; }
 .quest-dot{ position:absolute; top:-4px; right:-4px; width:9px; height:9px; border-radius:50%;
   background:#ff6b5e; border:2px solid rgba(10,18,27,.9); animation:questPulse 1.2s infinite; }
@@ -159,3 +163,34 @@ kbd{ display:inline-block; min-width:22px; text-align:center; padding:2px 6px; b
   border-radius:8px; padding:5px 14px; font-size:12px; font-weight:700; cursor:pointer; }
 .quest-claim:hover{ filter:brightness(1.1); }
 .quest-claim:disabled{ opacity:.6; cursor:default; }
+/* 三选一初始伙伴 */
+.starter-box{ width:92%; }
+.starter-lead{ font-size:12.5px; color:var(--muted); line-height:1.7; margin-bottom:14px; }
+.starter-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+.starter-card{ background:var(--panel2); border:2px solid var(--line); border-radius:14px; padding:12px 8px;
+  text-align:center; cursor:pointer; transition:.15s; display:flex; flex-direction:column; align-items:center; }
+.starter-card:hover{ transform:translateY(-3px); border-color:#5a7596; }
+.starter-card.selected{ border-color:var(--accent); background:#1e3a33; box-shadow:0 0 0 2px rgba(95,208,166,.25); }
+.starter-card canvas{ border-radius:12px; background:#203047; }
+.starter-name{ font-size:15px; font-weight:700; margin-top:8px; }
+.starter-type{ font-size:11px; margin-top:2px; }
+.starter-desc{ font-size:10.5px; color:var(--muted); line-height:1.5; margin-top:6px; min-height:46px; }
+.starter-confirm{ width:100%; margin-top:14px; }
+.starter-confirm:disabled{ opacity:.5; cursor:default; transform:none; }
+/* 商店 */
+.shop-lead{ font-size:12px; color:var(--muted); margin-bottom:12px; }
+.shop-count{ display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); margin-bottom:12px; }
+.shop-qty{ background:var(--panel2); border:1px solid var(--line); color:var(--muted); border-radius:8px;
+  padding:4px 12px; cursor:pointer; font-size:12px; }
+.shop-qty.on{ border-color:var(--accent); color:var(--accent); background:#173a30; }
+.shop-list{ display:flex; flex-direction:column; gap:9px; }
+.shop-item{ display:flex; align-items:center; gap:12px; background:var(--panel2); border:1px solid var(--line);
+  border-radius:11px; padding:10px 13px; }
+.shop-icon{ font-size:26px; color:var(--accent2); width:32px; text-align:center; }
+.shop-info{ flex:1; }
+.shop-name{ font-size:13.5px; font-weight:700; }
+.shop-owned{ font-size:11px; color:var(--muted); font-weight:400; margin-left:6px; }
+.shop-price{ font-size:11px; color:var(--muted); margin-top:2px; }
+.shop-buy{ background:var(--accent); color:#08251d; border:none; border-radius:9px; padding:8px 14px;
+  font-size:12.5px; font-weight:700; cursor:pointer; }
+.shop-buy:disabled{ opacity:.4; cursor:default; }

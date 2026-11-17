@@ -1,9 +1,10 @@
 /* 精灵物语 · 游戏引擎：地图探索（可见野怪）+ 投球出战动画 + 回合战斗，纯逻辑，通过 onUpdate 通知 React */
 import type { Monster, SaveData, BattleSettleDto, CaptureSettleDto, SettleResult } from '@shared/types';
-import { MAP, TILE, SKILLS, TYPES, TYPE_CHART, MONSTERS, ENCOUNTERS } from './config';
+import { TILE, SKILLS, TYPES, TYPE_CHART, MONSTERS, ENCOUNTERS } from './config';
 import { isWalkable } from './sprites';
 import { rnd, newMonster, maxHpFor } from './model';
 import { checksum, seededRandom, captureRate, grantExp } from '@shared/rules';
+import { MAPS, MAPS as MAP_DEF, type MapId, type NpcDef } from '@shared/maps';
 import { api } from '../api/client';
 import type { SkillFx } from './battleFx';
 
@@ -60,19 +61,12 @@ export interface EngineState {
   wilds: WildSpirit[];
 }
 
-const COLS = MAP[0].length, ROWS = MAP.length;
 const WILD_COUNT = 6;
 const WILD_SPEED = 0.55;
 const SUMMON_DUR: Record<SummonPhase, number> = { appear: 700, throw: 620, burst: 700, ready: 620 };
 
-function cellAt(c: number, r: number) { return (r < 0 || r >= ROWS || c < 0 || c >= COLS) ? '#' : MAP[r][c]; }
-function findStart() { for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (MAP[r][c] === 'S') return { x: c, y: r }; return { x: 2, y: 2 }; }
-function isGrass(c: number, r: number) { return cellAt(c, r) === '.'; }
-function grassTiles(): { c: number; r: number }[] {
-  const out: { c: number; r: number }[] = [];
-  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (isGrass(c, r)) out.push({ c, r });
-  return out;
-}
+/** 当前地图定义（按存档 progress.map 动态取） */
+function mapOf(id: string) { return MAP_DEF[id as MapId] || MAP_DEF.qingya; }
 
 export class GameEngine {
   save: SaveData;
@@ -102,9 +96,37 @@ export class GameEngine {
   /** 是否启用服务端权威结算（默认开，网络失败时内部降级） */
   useServerSettle = true;
 
+  // 场景切换/NPC 交互回调，交给 React 层处理 UI
+  onSceneChange: (mapId: MapId, name: string) => void = () => {};
+  onNpcInteract: (npc: NpcDef) => void = () => {};
+
+  /* ---------- 当前地图派生数据（全部基于 save.progress.map） ---------- */
+  private get map() { return mapOf(this.save.progress.map); }
+  private get COLS() { return this.map.grid[0].length; }
+  private get ROWS() { return this.map.grid.length; }
+  private cellAt(c: number, r: number) {
+    return (r < 0 || r >= this.ROWS || c < 0 || c >= this.COLS) ? '#' : this.map.grid[r][c];
+  }
+  private isGrass(c: number, r: number) {
+    const ch = this.cellAt(c, r);
+    return (ch === '.' || ch === 'E' || ch === 'N' || ch === 'B' || ch === 'P' || ch === 'H' || ch === 'S');
+  }
+  private findStart(): { x: number; y: number } {
+    for (let r = 0; r < this.ROWS; r++) for (let c = 0; c < this.COLS; c++)
+      if (this.cellAt(c, r) === 'S') return { x: c, y: r };
+    return { x: 2, y: 2 };
+  }
+  private grassTiles(): { c: number; r: number }[] {
+    const out: { c: number; r: number }[] = [];
+    for (let r = 0; r < this.ROWS; r++) for (let c = 0; c < this.COLS; c++)
+      if (this.isGrass(c, r)) out.push({ c, r });
+    return out;
+  }
+
   constructor(save: SaveData, version: number) {
     this.save = save; this.version = version;
-    const st = findStart();
+    if (!this.save.progress.map) this.save.progress.map = 'qingya';
+    const st = this.findStart();
     this.state = {
       scene: 'world',
       player: { x: st.x * TILE + TILE / 2, y: st.y * TILE + TILE / 2 - 4, dir: 1, walking: false },
@@ -162,14 +184,15 @@ export class GameEngine {
   }
 
   private initWilds() {
-    const tiles = grassTiles(), start = findStart();
     this.state.wilds = [];
+    if (!this.map.wilds) return; // 新手村不刷野怪
+    const tiles = this.grassTiles(), start = this.findStart();
     for (let i = 0; i < WILD_COUNT; i++) this.state.wilds.push(this.spawnWild(tiles, start));
   }
 
   private respawnWild() {
     if (!this.activeWild) return;
-    const tiles = grassTiles(), start = findStart();
+    const tiles = this.grassTiles(), start = this.findStart();
     const nw = this.spawnWild(tiles, start);
     const i = this.state.wilds.indexOf(this.activeWild);
     if (i >= 0) this.state.wilds[i] = nw;
@@ -189,7 +212,7 @@ export class GameEngine {
           const c = Math.floor(w.x / TILE), r = Math.floor(w.y / TILE);
           const opts = [[1, 0], [-1, 0], [0, 1], [0, -1]]
             .map(([dc, dr]) => ({ c: c + dc, r: r + dr }))
-            .filter(t => isGrass(t.c, t.r));
+            .filter(t => this.isGrass(t.c, t.r));
           if (opts.length) {
             const t = opts[rnd(0, opts.length - 1)];
             w.tx = t.c * TILE + TILE / 2; w.ty = t.r * TILE + TILE / 2;
@@ -208,6 +231,46 @@ export class GameEngine {
     }
   }
 
+  /** 玩家所在格子是否有 NPC（用于交互提示） */
+  npcNearby(): NpcDef | null {
+    const p = this.state.player;
+    const pc = Math.floor(p.x / TILE), pr = Math.floor(p.y / TILE);
+    return this.map.npcs.find(n => Math.abs(n.x - pc) <= 1 && Math.abs(n.y - pr) <= 1) || null;
+  }
+
+  /** 与附近 NPC / 任务板 / 商店交互 */
+  interact() {
+    const npc = this.npcNearby();
+    if (npc) { this.onNpcInteract(npc); return; }
+    // 出口：走到出口格子上按空格也可触发
+    const p = this.state.player;
+    const pc = Math.floor(p.x / TILE), pr = Math.floor(p.y / TILE);
+    const exit = this.map.exits.find(e => Math.abs(e.x - pc) <= 1 && Math.abs(e.y - pr) <= 1);
+    if (exit) this.switchMap(exit.to, exit.spawn);
+  }
+
+  /** 切换区域：更新存档 map、重置玩家落点、重建野怪、通知 UI */
+  switchMap(to: MapId, spawn?: { x: number; y: number }) {
+    const dest = mapOf(to);
+    this.save.progress.map = to;
+    const sp = spawn || this.findStartAfterSwitch(to);
+    const p = this.state.player;
+    p.x = sp.x * TILE + TILE / 2; p.y = sp.y * TILE + TILE / 2 - 4;
+    p.walking = false;
+    this.activeWild = null;
+    this.cooldown = 1500; // 切图后短暂冷却，避免立刻触发遭遇
+    this.initWilds();
+    this.onSceneChange(to, dest.name);
+    this.onSaveDirty();
+  }
+
+  private findStartAfterSwitch(to: MapId) {
+    const g = mapOf(to).grid;
+    for (let r = 0; r < g.length; r++) for (let c = 0; c < g[0].length; c++)
+      if (g[r][c] === 'S') return { x: c, y: r };
+    return { x: 2, y: 2 };
+  }
+
   private updateWorld(dt: number) {
     if (this.cooldown > 0) this.cooldown -= dt;
     let dx = 0, dy = 0;
@@ -219,10 +282,10 @@ export class GameEngine {
       const nx = p.x + dx * speed, ny = p.y + dy * speed, r = 9;
       const colX = Math.floor(nx / TILE), rowY = Math.floor(p.y / TILE);
       const colX2 = Math.floor((nx + (dx > 0 ? r : -r)) / TILE), rowY2 = Math.floor((ny + (dy > 0 ? r : -r)) / TILE);
-      if (isWalkable(cellAt(colX2, rowY)) && isWalkable(cellAt(colX, rowY2))) {
+      if (isWalkable(this.cellAt(colX2, rowY)) && isWalkable(this.cellAt(colX, rowY2))) {
         p.x = nx; p.y = ny; if (dx) p.dir = dx;
         this.save.profile.steps++;
-        const col = Math.floor(p.x / TILE), row = Math.floor(p.y / TILE), ch = cellAt(col, row);
+        const col = Math.floor(p.x / TILE), row = Math.floor(p.y / TILE), ch = this.cellAt(col, row);
         if (ch === 'H' && !this.healUsed) {
           this.healUsed = true;
           this.save.lastHeal = { x: col, y: row };
@@ -230,6 +293,11 @@ export class GameEngine {
           this.onDialog(['疗伤石碑亮起柔和的光芒……', '全队精灵的生命已完全恢复！']);
           setTimeout(() => this.healUsed = false, 100);
           this.onSaveDirty();
+        }
+        // 走上出口自动切换区域（无需按键，走进去即触发）
+        if (ch === 'E' && this.cooldown <= 0) {
+          const exit = this.map.exits.find(e => e.x === col && e.y === row);
+          if (exit) this.switchMap(exit.to, exit.spawn);
         }
       }
     }
@@ -588,7 +656,7 @@ export class GameEngine {
           this.onSaveDirty();
         }
         this.state.scene = 'world'; this.state.battle = null;
-        const st = this.save.lastHeal.x ? this.save.lastHeal : findStart();
+        const st = this.save.lastHeal.x ? this.save.lastHeal : this.findStart();
         this.state.player.x = st.x * TILE + TILE / 2; this.state.player.y = st.y * TILE + TILE / 2 - 4;
         this.cooldown = 1600; this.respawnWild();
         this.onDialog(['你在昏迷中被送回了石碑旁……', '精灵们已恢复体力，继续冒险吧！']);

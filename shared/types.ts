@@ -72,6 +72,21 @@ export interface CaptureSettleDto {
   clientChecksum: string;
 }
 
+/** 选择初始伙伴：三选一，物种由服务端白名单校验 */
+export interface ChooseStarterDto { species: number; gender: Gender; }
+export interface ChooseStarterResult {
+  monster: Monster;
+  version: number;
+  data: SaveData;
+}
+
+/** 商店购买：商品 id + 数量，价格由服务端按 SHOP_ITEMS 权威定价 */
+export interface ShopBuyDto { item: string; count: number; }
+export interface ShopBuyResult {
+  item: string; count: number; cost: number;
+  version: number; data: SaveData;
+}
+
 /** 任务奖励领取上报：只需任务 id，条件由服务端按权威存档校验 */
 export interface QuestClaimDto { questId: string; }
 

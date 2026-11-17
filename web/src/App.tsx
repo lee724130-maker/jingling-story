@@ -2,18 +2,21 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { api } from './api/client';
 import type { SaveData, Gender } from '@shared/types';
 import { GameEngine, type EngineState } from './game/engine';
-import { createNewSave } from './game/model';
+import { createNewSave, migrateSave } from './game/model';
 import { MAP, MONSTERS, TYPES, TILE, ART } from './game/config';
 import { drawBattleSpirit, drawBall, drawBeam } from './game/sprites';
 import { drawSkillFx } from './game/battleFx';
 import { preloadSpirits } from './game/spiritCanvas';
 import { claimableCount, allQuestViews } from '@shared/quests';
+import { MAPS, type MapId, type NpcDef } from '@shared/maps';
 import Scene3D from './game/world3d/Scene3D';
 import TitleScreen from './components/TitleScreen';
 import Hud from './components/Hud';
 import BattleUI from './components/BattleUI';
 import Panel from './components/Panel';
 import QuestPanel from './components/QuestPanel';
+import StarterPanel from './components/StarterPanel';
+import ShopPanel from './components/ShopPanel';
 import Dialog from './components/Dialog';
 import Toast from './components/Toast';
 import SummonUI from './components/SummonUI';
@@ -36,6 +39,13 @@ export default function App() {
   const [summonCaption, setSummonCaption] = useState('');
   const [questOpen, setQuestOpen] = useState(false);
   const [claiming, setClaiming] = useState<string | null>(null);
+  const [starterOpen, setStarterOpen] = useState(false);
+  const [shopOpen, setShopOpen] = useState(false);
+  const [choosing, setChoosing] = useState(false);
+  const [buying, setBuying] = useState(false);
+  const [nearNpc, setNearNpc] = useState<NpcDef | null>(null);
+  const [mapName, setMapName] = useState('青芽村 · 新手村');
+  const [dialogDone, setDialogDone] = useState<(() => void) | null>(null);
   const questNotified = useRef<Set<string>>(new Set());
 
   const showToast = useCallback((m: string) => {
@@ -63,13 +73,16 @@ export default function App() {
     }, 600);
   }, [showToast]);
 
-  const launch = useCallback((save: SaveData, ver: number) => {
+  const launch = useCallback((rawSave: SaveData, ver: number) => {
+    const save = migrateSave(rawSave);
     saveRef.current = save; versionRef.current = ver;
     const eng = new GameEngine(save, ver);
     engineRef.current = eng;
+    setMapName(MAPS[save.progress.map as MapId]?.name || '青芽村 · 新手村');
     eng.onUpdate = (s) => {
       setEngineState({ ...s });
       if (s.scene === 'summon') setSummonCaption(eng.summonCaption());
+      setNearNpc(s.scene === 'world' ? eng.npcNearby() : null);
       // 新手引导：任务刚完成时提示领取（每帧检测，用 ref 去重，避免重复弹）
       for (const v of allQuestViews(eng.save)) {
         if (v.complete && !v.claimed && !questNotified.current.has(v.id)) {
@@ -80,6 +93,24 @@ export default function App() {
     };
     eng.onSaveDirty = () => markDirty();
     eng.onDialog = (lines) => setDialog(lines);
+    // 场景切换：更新地图名 + 提示
+    eng.onSceneChange = (to, name) => {
+      setMapName(name);
+      showToast(`已抵达：${name}`);
+    };
+    // NPC 交互：按角色分派对话/商店/任务板/选宠
+    eng.onNpcInteract = (npc) => {
+      if (npc.role === 'shop') { setShopOpen(true); return; }
+      if (npc.role === 'questboard') { setQuestOpen(true); return; }
+      const needStarter = eng.save.progress.flags.includes('story:need_starter');
+      if (npc.role === 'elder' && needStarter) {
+        setDialog([...npc.lines, '来吧，从这三只里挑一只作为你的伙伴。']);
+        setDialogDone(() => () => setStarterOpen(true));
+      } else {
+        setDialog(npc.lines);
+        setDialogDone(null);
+      }
+    };
     // 服务端权威结算后：取消待提交的旧存档防抖，同步新的版本号与存档引用
     eng.onAuthoritativeSave = (save, ver) => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -206,25 +237,45 @@ export default function App() {
       const map: Record<string, string> = { arrowup: 'up', w: 'up', arrowdown: 'down', s: 'down', arrowleft: 'left', a: 'left', arrowright: 'right', d: 'right' };
       if (map[k]) { eng.setKey(map[k], v); e.preventDefault(); }
     };
+    const advanceDialog = () => {
+      if (dialog.length <= 1) dialogDone?.();
+      setDialog(d => d.slice(1));
+    };
     const down = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { setPanel(p => p ? null : 'menu'); return; }
-      if (e.key === 'Enter' && dialog.length) { setDialog(d => d.slice(1)); return; }
+      if ((e.key === 'Enter' || e.key === ' ') && dialog.length) { e.preventDefault(); advanceDialog(); return; }
+      if (e.key === ' ' || e.key.toLowerCase() === 'e') {
+        // 面板/对话打开时不触发世界交互
+        if (panel || questOpen || starterOpen || shopOpen || dialog.length) return;
+        e.preventDefault();
+        eng.interact();
+        return;
+      }
       set(e, true);
     };
     const up = (e: KeyboardEvent) => set(e, false);
     window.addEventListener('keydown', down); window.addEventListener('keyup', up);
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
-  }, [stage, dialog.length]);
+  }, [stage, dialog.length, dialogDone, panel, questOpen, starterOpen, shopOpen]);
 
   const handleLogin = async (username: string, gender: Gender) => {
     try {
       await api.login(username);
       const r = await api.getSave();
-      if (r.data) launch(r.data, r.version);
-      else launch(createNewSave(username, gender), 0);
+      const isNew = !r.data;
+      const save = isNew ? createNewSave(username, gender) : r.data!;
+      launch(save, isNew ? 0 : r.version);
       showToast('欢迎来到精灵物语，' + username + '！');
-      setDialog(['欢迎来到精灵物语！', '草地上能看到游荡的野生精灵，走近它们（碰到即可）就会开战。',
-        '右上角「任务」里有冒险目标，完成就能领金币和道具。先去走走，完成「启程的第一步」吧！']);
+      if (isNew || save.progress.flags.includes('story:need_starter')) {
+        setDialog(['欢迎来到青芽村，年轻的冒险家！',
+          '这里是新手村，很安全，没有野生精灵。',
+          '先去找村长木老（地图上他的标记），选一只初始伙伴，再踏上旅途吧！',
+          '提示：走到 NPC 或出口附近，按 空格键 交互。']);
+        setDialogDone(null);
+      } else {
+        setDialog(['欢迎回到青芽村！', '走向地图上方的出口可前往大草原捕捉精灵；走近 NPC 按空格键对话。']);
+        setDialogDone(null);
+      }
     } catch (e: any) { showToast('登录失败: ' + e.message); }
   };
 
@@ -252,6 +303,39 @@ export default function App() {
     }
   };
 
+  // 选择初始伙伴：服务端权威生成精灵，成功后同步存档、关闭选宠面板、进入主线下一步
+  const handleChooseStarter = async (species: number, g: Gender) => {
+    const eng = engineRef.current;
+    if (!eng || choosing) return;
+    setChoosing(true);
+    try {
+      const r = await api.chooseStarter({ species, gender: g });
+      if (!r.ok || !r.result) { showToast(r.message || '选择失败'); return; }
+      eng.applySave(r.result.data, r.result.version);
+      setStarterOpen(false);
+      const name = MONSTERS[species]?.name || '精灵';
+      showToast(`“就决定是你了！” ${name} 加入了队伍！`);
+      setDialog([`${name} 回应了你的召唤！`, '主线已完成：挑选初始伙伴。', '现在可以向村长打听更多冒险线索，或前往大草原捕捉新精灵了。']);
+      setDialogDone(null);
+    } catch (e: any) { showToast('选择失败: ' + e.message); }
+    finally { setChoosing(false); }
+  };
+
+  // 商店购买：服务端权威定价与扣款，成功后同步存档
+  const handleBuy = async (item: string, count: number) => {
+    const eng = engineRef.current;
+    if (!eng || buying) return;
+    setBuying(true);
+    try {
+      const r = await api.shopBuy({ item, count });
+      if (!r.ok || !r.result) { showToast(r.message || '购买失败'); return; }
+      eng.applySave(r.result.data, r.result.version);
+      const nm = item === 'ball' ? '灵兽球' : '活力草';
+      showToast(`购买成功：${nm} ×${count}（◈${r.result.cost}）`);
+    } catch (e: any) { showToast('购买失败: ' + e.message); }
+    finally { setBuying(false); }
+  };
+
   return (
     <div id="app">
       <header className="topbar">
@@ -276,10 +360,12 @@ export default function App() {
           {/* 2D 特效叠加层：投球/战斗精灵与球动画 */}
           <canvas ref={canvasRef} width={640} height={448} className="fx-canvas" />
 
-          {stage === 'game' && engineState && <Hud save={engineRef.current!.save}
+          {stage === 'game' && engineState && <Hud save={engineRef.current!.save} mapName={mapName}
             claimable={claimableCount(engineRef.current!.save)} onOpenQuest={() => setQuestOpen(true)} />}
-          {stage === 'game' && engineState?.scene === 'world' && !panel && !dialog.length &&
-            <div className="hint">方向键/WASD 移动 · 走近草地上游荡的野怪触发战斗 · Esc 菜单</div>}
+          {stage === 'game' && engineState?.scene === 'world' && !panel && !dialog.length && !nearNpc && !starterOpen && !shopOpen &&
+            <div className="hint">WASD 移动 · 走到 NPC/出口旁按 空格 交互 · Esc 菜单</div>}
+          {stage === 'game' && engineState?.scene === 'world' && nearNpc && !dialog.length && !panel && !starterOpen && !shopOpen &&
+            <div className="npc-hint">按 <kbd>空格</kbd> 与 <b>{nearNpc.name}</b> 交互</div>}
 
           {stage === 'title' && <TitleScreen onLogin={handleLogin} />}
 
@@ -298,7 +384,14 @@ export default function App() {
           {questOpen && stage === 'game' && <QuestPanel save={engineRef.current!.save}
             onClose={() => setQuestOpen(false)} onClaim={handleClaim} claiming={claiming} />}
 
-          {dialog.length > 0 && <Dialog lines={dialog} onNext={() => setDialog(d => d.slice(1))} />}
+          {starterOpen && stage === 'game' && <StarterPanel gender={engineRef.current!.save.profile.gender}
+            onChoose={handleChooseStarter} choosing={choosing} />}
+
+          {shopOpen && stage === 'game' && <ShopPanel save={engineRef.current!.save}
+            onBuy={handleBuy} buying={buying} onClose={() => setShopOpen(false)} />}
+
+          {dialog.length > 0 && <Dialog lines={dialog} onNext={() => setDialog(d => d.slice(1))}
+            onDone={() => { dialogDone?.(); setDialogDone(null); }} />}
           {toast && <Toast text={toast} />}
         </div>
 
@@ -306,11 +399,11 @@ export default function App() {
           <div className="help-title">操作说明</div>
           <div className="help-grid">
             <div><kbd>↑↓←→</kbd>/<kbd>WASD</kbd><span>移动</span></div>
-            <div><kbd>走近野怪</kbd><span>投球出战</span></div>
+            <div><kbd>空格</kbd>/<kbd>E</kbd><span>与 NPC / 出口交互</span></div>
             <div><kbd>回车</kbd><span>确认对话</span></div>
             <div><kbd>Esc</kbd><span>菜单</span></div>
           </div>
-          <div className="help-foot">React + TypeScript 前端 · NestJS 后端 · MySQL 独立库（jingling_story，与主项目隔离）。地图上可见野怪游荡，走近即投球放出己方精灵进入对战。</div>
+          <div className="help-foot">新手村（青芽村）：安全无野怪，有村长、商店、任务板与疗伤石碑。走向地图上方出口可进入「大草原」副本，那里才有野生精灵，走近即投球出战。</div>
         </div>
       </div>
     </div>

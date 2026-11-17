@@ -50,23 +50,28 @@ function check(name, cond, extra) { R.push({ name, pass: !!cond, extra }); conso
   const speedRes = await page.evaluate(async () => {
     const g = window.__game;
     const reset = () => {
+      g.clearMoveTarget();
       const st = g.findStart();
       g.state.player.x = st.x * 32 + 16; g.state.player.y = st.y * 32 + 12;
     };
-    // 走路
+    // headless 下大模型帧率不稳，用「位移/帧数」归一化比较每帧速度，消除帧率波动。
+    // 目标设 100px（不撞墙），窗口 600ms。
     reset(); let p0 = { x: g.state.player.x, y: g.state.player.y };
-    g.setMoveTarget(p0.x + 90, p0.y, false);
-    await new Promise(r => setTimeout(r, 500));
-    const walkD = Math.abs(g.state.player.x - p0.x);
+    let f0 = g.getFrame();
+    g.setMoveTarget(p0.x + 100, p0.y, false);
+    await new Promise(r => setTimeout(r, 600));
+    const walkD = Math.abs(g.state.player.x - p0.x), walkF = g.getFrame() - f0;
     // 小跑
     reset(); p0 = { x: g.state.player.x, y: g.state.player.y };
-    g.setMoveTarget(p0.x + 90, p0.y, true);
-    await new Promise(r => setTimeout(r, 500));
-    const runD = Math.abs(g.state.player.x - p0.x);
+    f0 = g.getFrame();
+    g.setMoveTarget(p0.x + 100, p0.y, true);
+    await new Promise(r => setTimeout(r, 600));
+    const runD = Math.abs(g.state.player.x - p0.x), runF = g.getFrame() - f0;
     g.clearMoveTarget();
-    return { walkD, runD };
+    const walkSpeed = walkD / Math.max(1, walkF), runSpeed = runD / Math.max(1, runF);
+    return { walkD, runD, walkF, runF, walkSpeed, runSpeed };
   });
-  check('小跑位移 > 走路位移', speedRes.runD > speedRes.walkD * 1.2, speedRes);
+  check('小跑速度 > 走路速度(每帧归一化)', speedRes.runSpeed > speedRes.walkSpeed * 1.2, speedRes);
 
   // 4) Shift 键设置小跑状态
   const shiftRes = await page.evaluate(() => {

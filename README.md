@@ -15,7 +15,7 @@
 | 后端 | NestJS 10 + TypeScript |
 | 数据库 | MySQL 独立库 `jingling_story`（`STORAGE_MODE=mysql`，可切 `local`）|
 | 共享 | `shared/types.ts` 类型 · `shared/gamedata.ts` 配置 · `shared/rules.ts` 战斗规则 · `shared/quests.ts` 任务 · `shared/maps.ts` 多地图/NPC/商店 |
-| 美术 | AI 立绘（精灵群像裁切头像、草原地面、天空远景）+ Kenney CC0 3D 场景模型（树木/花草/岩石/商店摊/喷泉/路灯/围栏）+ three.js 官方 MIT 骨骼动画人物（hero.glb，玩家/NPC，Idle/Walking/Running）+ Canvas 2D 战斗特效 |
+| 美术 | AI 立绘（精灵群像裁切头像、草原地面、天空远景）+ Kenney CC0 3D 场景模型（树木/花草/岩石/商店摊/喷泉/路灯/围栏）+ three.js 官方 MIT 人形骨骼动画（hero.glb=Xbot，玩家/NPC，idle/walk/run）+ Canvas 2D 战斗特效 |
 | 认证 | 本地测试账号 + JWT（微信 UnionID 登录后补）|
 
 ## 目录结构
@@ -61,7 +61,7 @@ Vite 已配 `/api` 代理到后端 3000，前端 API 请求走同源。
 
 - **第三人称视角**：Three.js / React Three Fiber / Drei 搭建，跟随相机锁定玩家，支持 **左键点地面寻路移动** 与 **WASD / 方向键** 两种操控
 - **左键点击交互**：点地面自动寻路（直线 + 轴向滑动绕障 + 不可达保护），点 NPC/出口/野怪直接交互；按住 **Shift** 或点击时带 Shift 进入小跑（速度 3.7 vs 走路 2.3）
-- **3D 骨骼动画人物**：玩家与 NPC 用 three.js 官方 MIT 模型 `hero.glb`（`useGLTF` + `useAnimations` + `SkeletonUtils.clone` 深拷贝骨骼/材质），按状态播放 **Idle / Walking / Running** 动画；玩家男女配色区分、NPC 按角色着色、包围盒自动对齐脚底，模型加载失败回退占位
+- **3D 人形骨骼动画**：玩家与 NPC 用 three.js 官方 MIT **Xbot 真人形模型** `hero.glb`（`useGLTF` + `useAnimations` + `SkeletonUtils.clone` 深拷贝骨骼/材质），按状态播放 **idle / walk / run** 动画；玩家男女配色区分、NPC 按角色着色；模型设计脚在 y≈0 直接贴地（不用 Box3 对齐，避免 SkinnedMesh 骨骼变换算错高度导致浮空），加载失败回退占位
 - **范围空间场景**：AI 生成的草原地面贴图 + 蓝天白云远山天空图，树木/花草/岩石/村庄建筑改用 **Kenney CC0 3D 模型**（GLB，`useGLTF` 加载 + 失败回退程序化几何体），水面与地形边界程序化补齐
 - **2.5D 广告牌精灵**：AI 精灵立绘作为朝向相机的贴图平面（战斗与野怪），运行时抠白底；人物已升级为真 3D 模型
 - 玩家身后跟随出战精灵；地图上 6 只野怪游荡、浮动、发现玩家显示警戒感叹号；点野怪可自动走过去触发战斗

@@ -16,15 +16,18 @@ const HERO_URL = '/models/characters/hero.glb';
 useGLTF.preload(HERO_URL);
 
 /* ==================== 带骨骼动画的 3D 人物 ==================== */
-/** 克隆材质并按角色着色：Main 材质改主色，其余保留原色 */
+/** 动画名映射：逻辑态(Idle/Walking/Running) → 模型剪辑名（Xbot 为小写 idle/walk/run） */
+const ANIM_CLIP: Record<string, string> = { Idle: 'idle', Walking: 'walk', Running: 'run' };
+
+/** 克隆材质并按角色着色：给身体/关节主色，保留少量原色点缀 */
 function tintMaterial(mat: THREE.Material, color: string): THREE.Material {
   const m = mat.clone();
   const mm = m as THREE.MeshStandardMaterial;
-  if (mm.name === 'Main' && mm.color) mm.color.set(color);
+  if (mm.color) mm.color.set(color);
   return m;
 }
 
-/** 玩家/NPC 通用模型：加载 hero.glb，克隆骨骼，运行时着色，按状态播放 Idle/Walking/Running */
+/** 玩家/NPC 通用模型：加载 hero.glb(Xbot 人形)，克隆骨骼，运行时着色，按状态播放 idle/walk/run */
 function useHeroModel(color: string) {
   const group = useRef<THREE.Group>(null!);
   const { scene, animations } = useGLTF(HERO_URL);
@@ -43,18 +46,18 @@ function useHeroModel(color: string) {
         }
       }
     });
-    // 模型原点可能在腰部，计算包围盒把脚底对齐到 y=0，避免悬空/陷地
-    const box = new THREE.Box3().setFromObject(c);
-    c.position.y = -box.min.y;
+    // 注意：不能对 SkinnedMesh 用 Box3.setFromObject 求脚底——它套用骨骼变换
+    // 会得到错误的 min.y，导致整体抬高浮空。这类模型设计上脚已在 y≈0，保持原点即可。
     return c;
   }, [scene, color]);
   const currentRef = useRef('');
   const setAnim = useCallback((name: 'Idle' | 'Walking' | 'Running') => {
     if (currentRef.current === name) return;
     const prevName = currentRef.current;
-    const next = actions[name];
+    const clip = ANIM_CLIP[name];
+    const next = actions[clip];
     if (!next) return;
-    if (prevName && actions[prevName]) actions[prevName]!.fadeOut(0.18);
+    if (prevName && actions[ANIM_CLIP[prevName]]) actions[ANIM_CLIP[prevName]]!.fadeOut(0.18);
     next.reset().fadeIn(0.18).play();
     currentRef.current = name;
   }, [actions]);
@@ -77,7 +80,7 @@ function PlayerCharacter({ engine }: { engine: GameEngine }) {
     setAnim(p.running ? 'Running' : p.walking ? 'Walking' : 'Idle');
   });
   return (
-    <group ref={group} scale={0.62}>
+    <group ref={group} scale={1.3}>
       <primitive object={model} />
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
         <circleGeometry args={[0.5, 24]} />
@@ -97,11 +100,11 @@ function NpcCharacter({ npc, color, onInteract }: { npc: NpcDef; color: string; 
       onClick={(e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); onInteract(npc); }}
       onPointerOver={(e: ThreeEvent<PointerEvent>) => { e.stopPropagation(); setHover(true); document.body.style.cursor = 'pointer'; }}
       onPointerOut={() => { setHover(false); document.body.style.cursor = 'auto'; }}>
-      <group ref={group} scale={0.6}><primitive object={model} /></group>
-      <Billboard position={[0, 1.5, 0]}>
+      <group ref={group} scale={1.15}><primitive object={model} /></group>
+      <Billboard position={[0, 2.35, 0]}>
         <Text fontSize={0.26} color={hover ? '#ffe37a' : '#ffffff'} outlineWidth={0.05} outlineColor="#2a3a2a">{npc.name}</Text>
       </Billboard>
-      {hover && <Billboard position={[0, 1.8, 0]}><Text fontSize={0.18} color="#7fffd0" outlineWidth={0.03} outlineColor="#1a3a2a">点击互动</Text></Billboard>}
+      {hover && <Billboard position={[0, 2.7, 0]}><Text fontSize={0.18} color="#7fffd0" outlineWidth={0.03} outlineColor="#1a3a2a">点击互动</Text></Billboard>}
     </group>
   );
 }

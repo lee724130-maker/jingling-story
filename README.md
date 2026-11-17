@@ -4,7 +4,7 @@
 
 **GitHub 仓库**：https://github.com/lee724130-maker/jingling-story （私有）
 
-当前阶段：**第三人称 3D 第一版 + 双区域新手村/野外副本**（阶段 1/2/4 部分完成），React + TypeScript 前端 / NestJS 后端联调 Demo。
+当前阶段：**第三人称 3D 第一版 + CC0 3D 素材场景 + 双区域新手村/野外副本**（阶段 1/2/4 部分完成），React + TypeScript 前端 / NestJS 后端联调 Demo。
 
 ## 技术栈
 
@@ -15,7 +15,7 @@
 | 后端 | NestJS 10 + TypeScript |
 | 数据库 | MySQL 独立库 `jingling_story`（`STORAGE_MODE=mysql`，可切 `local`）|
 | 共享 | `shared/types.ts` 类型 · `shared/gamedata.ts` 配置 · `shared/rules.ts` 战斗规则 · `shared/quests.ts` 任务 · `shared/maps.ts` 多地图/NPC/商店 |
-| 美术 | AI 立绘（男/女训练师、精灵群像裁切头像、草原地面、天空远景）+ 程序化补齐（树木/水面/地形）+ Canvas 2D 战斗特效 |
+| 美术 | AI 立绘（男/女训练师、精灵群像裁切头像、草原地面、天空远景）+ Kenney CC0 3D 模型（树木/花草/岩石/商店摊/喷泉/路灯/围栏）+ Canvas 2D 战斗特效 |
 | 认证 | 本地测试账号 + JWT（微信 UnionID 登录后补）|
 
 ## 目录结构
@@ -31,7 +31,8 @@
 │       │   ├── sprites.ts     # 2D Canvas 动作绘制层
 │       │   ├── config.ts      # 转发 @shared/gamedata
 │       │   └── model.ts       # 复用 @shared/rules 建精灵
-│       └── public/art/        # AI 素材：trainer_male/female / spirits / scene_grass / scene_sky
+│       ├── public/art/        # AI 素材：trainer_male/female / spirits / scene_grass / scene_sky
+│       └── public/models/     # Kenney CC0 3D 素材：nature/（树花草岩石）+ town/（摊/喷泉/路灯/围栏，含 Textures/colormap.png）
 ├── server/      # NestJS 后端（端口 3000）
 │   └── src/{auth,player,game,common}
 ├── shared/      # 前后端共享：types / gamedata / rules / quests / maps
@@ -59,7 +60,7 @@ Vite 已配 `/api` 代理到后端 3000，前端 API 请求走同源。
 ### 第三人称 3D 世界（第一版垂直切片）
 
 - **第三人称视角**：Three.js / React Three Fiber / Drei 搭建，跟随相机锁定玩家，方向键 / WASD 操控移动
-- **范围空间场景**：AI 生成的草原地面贴图 + 蓝天白云远山天空图，程序化补齐树木、水面与地形边界（AI 生成场景图 + 程序化补齐方案）
+- **范围空间场景**：AI 生成的草原地面贴图 + 蓝天白云远山天空图，树木/花草/岩石/村庄建筑改用 **Kenney CC0 3D 模型**（GLB，`useGLTF` 加载 + 失败回退程序化几何体），水面与地形边界程序化补齐（AI 生成场景图 + 可商用素材 + 程序化补齐方案）
 - **2.5D 广告牌角色**：AI 生成的人物/精灵立绘作为朝向相机的贴图平面，运行时抠图（浅绿背景/白底转透明），保留 AI 画风并呈现浮动/待机动效
 - 玩家身后跟随出战精灵；地图上 6 只野怪游荡、浮动、发现玩家显示警戒感叹号
 - 3D 世界作为底层，战斗/投球过场用 2D Canvas 特效层叠加，兼顾画面表现与开发效率
@@ -67,9 +68,10 @@ Vite 已配 `/api` 代理到后端 3000，前端 API 请求走同源。
 ### 双区域地图：新手村 + 野外副本
 
 - **区域数据驱动**：地图集中在 `shared/maps.ts` 前后端共用，`SaveData.progress.map` 记录当前区域；地把单地图硬编码重构为多地图派生（engine 的 cellAt/findStart/野怪生成全按当前地图动态计算）
-- **青芽村（新手村）**：开阔少障碍、程序化小屋建筑，无野生精灵；含村长木老（主线）、商店老板阿布、向导小岚、冒险任务板、疗伤石碑；村内上方有金色传送门出口
-- **大草原（野外副本）**：AI 草地纹理 + 密集树木 + 水面边界，6 只可见野怪游荡，绿色传送门出口返回村庄；走进出口格子即自动切换区域，切图后落点重置、野怪重建、短暂冷却防误触
-- **3D 场景按区域切换**：村庄显示建筑与纯色草地（26 棵树）、草原显示 AI 纹理与野怪（90 棵树），`Canvas key=mapId` 强制重建场景
+- **青芽村（新手村）**：开阔少障碍、Kenney 中世纪素材搭建（商店摊/村长摊/中央喷泉/路灯/围栏/岩石），无野生精灵；含村长木老（主线）、商店老板阿布、向导小岚、冒险任务板、疗伤石碑；村内上方有金色传送门出口
+- **大草原（野外副本）**：AI 草地纹理 + Kenney 多种树木花草岩石 + 水面边界，6 只可见野怪游荡，绿色传送门出口返回村庄；走进出口格子即自动切换区域，切图后落点重置、野怪重建、短暂冷却防误触
+- **3D 场景按区域切换**：村庄显示建筑与纯色草地（20 棵树）、草原显示 AI 纹理与野怪（42 棵树，密度已调稀保证视野开阔），`Canvas key=mapId` 强制重建场景
+- **素材合规**：Kenney Nature Kit / Fantasy Town Kit 均为 CC0（可商用、无需署名），授权文件随模型存于 `web/public/models/*/LICENSE.txt`；Town 模型的外部图集 `Textures/colormap.png` 已随包提供，避免 GLTFLoader 贴图丢失
 
 ### 新手村基础设施与主线
 

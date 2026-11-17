@@ -1,8 +1,8 @@
 /* 精灵物语 · 第三人称 3D 世界场景（React Three Fiber）
  * 逻辑仍由 GameEngine 驱动（像素坐标），本组件只做渲染；战斗/过场仍走原有 2D overlay。 */
-import React, { Suspense, useMemo, useRef } from 'react';
+import React, { Suspense, useMemo, useRef, Component, type ReactNode } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Billboard, Text, useTexture } from '@react-three/drei';
+import { Billboard, Text, useTexture, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import type { GameEngine, WildSpirit } from '../engine';
 import { ART, SPIRIT_CELL, MONSTERS } from '../config';
@@ -102,48 +102,138 @@ function WildMonsters({ engine, tick }: { engine: GameEngine; tick: number }) {
   return <>{engine.state.wilds.map(w => <WildMonster key={w.id} wild={w} engine={engine} />)}</>;
 }
 
-/* ---------- 程序化树木（数量按地图配置） ---------- */
-function Trees({ count }: { count: number }) {
-  const trees = useMemo(() => {
-    const arr: {x:number;z:number;s:number}[] = [];
-    let seed = 42;
+/* ---------- Kenney CC0 3D 素材（真实模型替换程序化几何体） ---------- */
+const NATURE = {
+  oak: '/models/nature/tree_oak.glb',
+  pine: '/models/nature/tree_pineDefaultA.glb',
+  detailed: '/models/nature/tree_detailed.glb',
+  default: '/models/nature/tree_default.glb',
+  bush: '/models/nature/plant_bush.glb',
+  bushLarge: '/models/nature/plant_bushLarge.glb',
+  flowerRed: '/models/nature/flower_redA.glb',
+  flowerYellow: '/models/nature/flower_yellowA.glb',
+  flowerPurple: '/models/nature/flower_purpleA.glb',
+  grass: '/models/nature/grass.glb',
+  rockLarge: '/models/nature/rock_largeA.glb',
+  rockSmall: '/models/nature/rock_smallA.glb'
+};
+const TOWN = {
+  stall: '/models/town/stall.glb',
+  stallGreen: '/models/town/stall-green.glb',
+  fountain: '/models/town/fountain-round.glb',
+  lantern: '/models/town/lantern.glb',
+  fence: '/models/town/fence.glb',
+  tree: '/models/town/tree.glb',
+  rock: '/models/town/rock-large.glb'
+};
+// 预加载常用模型，减少首次进入的加载闪烁
+useGLTF.preload(NATURE.oak);
+useGLTF.preload(NATURE.pine);
+useGLTF.preload(TOWN.stall);
+useGLTF.preload(TOWN.fountain);
+
+/** 加载失败兜底：渲染程序化圆锥树，保证场景永不空白 */
+class ModelBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch() { /* 静默回退 */ }
+  render() { return this.state.failed ? this.props.fallback : this.props.children; }
+}
+
+/** 通用 GLB 模型渲染：useGLTF 克隆场景，统一投影 */
+function Model({ url, scale = 1, rotation = 0, position = [0,0,0] }: {
+  url: string; scale?: number; rotation?: number; position?: [number,number,number];
+}) {
+  const { scene } = useGLTF(url);
+  const cloned = useMemo(() => scene.clone(true), [scene]);
+  return <primitive object={cloned} position={position} rotation={[0, rotation, 0]} scale={scale} castShadow receiveShadow />;
+}
+
+/** 程序化回退树（模型加载失败时使用） */
+function FallbackTree({ s }: { s: number }) {
+  return <group scale={s}>
+    <mesh position={[0,0.5,0]} castShadow><cylinderGeometry args={[0.1,0.14,1,6]} /><meshLambertMaterial color="#7a5230" /></mesh>
+    <mesh position={[0,1.3,0]} castShadow><coneGeometry args={[0.7,1.5,7]} /><meshLambertMaterial color="#2f8f5c" /></mesh>
+    <mesh position={[0,1.9,0]} castShadow><coneGeometry args={[0.5,1.1,7]} /><meshLambertMaterial color="#38a568" /></mesh>
+  </group>;
+}
+
+/* ---------- 树林：Kenney 真实树木模型（多种随机） ---------- */
+function Trees({ count, village = false }: { count: number; village?: boolean }) {
+  const items = useMemo(() => {
+    const arr: {x:number;z:number;s:number;url:string;kind:number}[] = [];
+    let seed = village ? 77 : 42;
     const rnd = () => { seed = (seed*1664525+1013904223)>>>0; return seed/4294967296; };
+    const urls = village ? [TOWN.tree, NATURE.oak, NATURE.detailed] : [NATURE.oak, NATURE.pine, NATURE.detailed, NATURE.default];
     for (let i = 0; i < count; i++) {
       const x = (rnd()-0.5)*worldSpanX(PX_W)*1.05;
       const z = (rnd()-0.5)*worldSpanY(PX_H)*1.05;
-      const s = 0.7 + rnd()*0.7;
-      arr.push({x,z,s});
+      const s = 0.75 + rnd()*0.6;
+      arr.push({ x, z, s, url: urls[Math.floor(rnd()*urls.length)], kind: Math.floor(rnd()*3) });
     }
     return arr;
-  }, [count]);
-  return <>{trees.map((t,i) => (
-    <group key={i} position={[t.x, 0, t.z]} scale={t.s}>
-      <mesh position={[0,0.5,0]} castShadow><cylinderGeometry args={[0.1,0.14,1,6]} /><meshLambertMaterial color="#7a5230" /></mesh>
-      <mesh position={[0,1.3,0]} castShadow><coneGeometry args={[0.7,1.5,7]} /><meshLambertMaterial color="#2f8f5c" /></mesh>
-      <mesh position={[0,1.9,0]} castShadow><coneGeometry args={[0.5,1.1,7]} /><meshLambertMaterial color="#38a568" /></mesh>
-    </group>
+  }, [count, village]);
+  return <>{items.map((t,i) => (
+    <ModelBoundary key={i} fallback={<group position={[t.x,0,t.z]}><FallbackTree s={t.s} /></group>}>
+      <group position={[t.x, 0, t.z]} rotation={[0, t.kind * 1.1, 0]} scale={t.s}>
+        <Model url={t.url} />
+      </group>
+    </ModelBoundary>
   ))}</>;
 }
 
-/* ---------- 新手村建筑：几栋程序化小屋 + 招牌（AI 场景图之外用几何体补齐） ---------- */
-function VillageBuildings() {
-  const houses = useMemo(() => {
-    const W = worldSpanX(PX_W), H = worldSpanY(PX_H);
-    return [
-      { x: -W*0.34, z: -H*0.28, c: '#d9885a' },  // 商店（暖橙屋顶）
-      { x:  W*0.30, z: -H*0.30, c: '#7b9fd6' },  // 村长屋（蓝屋顶）
-      { x: -W*0.30, z:  H*0.24, c: '#9b7fc4' },  // 向导屋（紫屋顶）
-      { x:  W*0.32, z:  H*0.22, c: '#c9a25a' }   // 民宅（黄屋顶）
-    ];
-  }, []);
-  return <>{houses.map((h, i) => (
-    <group key={i} position={[h.x, 0, h.z]}>
-      <mesh position={[0, 0.75, 0]} castShadow><boxGeometry args={[2.4, 1.5, 2.0]} /><meshLambertMaterial color="#efe3c8" /></mesh>
-      <mesh position={[0, 1.65, 0]} castShadow><coneGeometry args={[1.9, 1.0, 4]} /><meshLambertMaterial color={h.c} /></mesh>
-      <mesh position={[0, 0.5, 1.02]}><boxGeometry args={[0.6, 1.0, 0.06]} /><meshLambertMaterial color="#8a5a34" /></mesh>
-      <mesh position={[0.75, 0.85, 1.02]}><boxGeometry args={[0.4, 0.4, 0.06]} /><meshLambertMaterial color="#bfe6f5" /></mesh>
-    </group>
+/* ---------- 植被点缀：花草 + 岩石（草原/村庄通用，真实模型） ---------- */
+function Foliage({ village = false }: { village?: boolean }) {
+  const items = useMemo(() => {
+    const arr: {x:number;z:number;s:number;url:string;rot:number}[] = [];
+    let seed = village ? 918 : 618;
+    const rnd = () => { seed = (seed*1664525+1013904223)>>>0; return seed/4294967296; };
+    const urls = [NATURE.bush, NATURE.bushLarge, NATURE.flowerRed, NATURE.flowerYellow, NATURE.flowerPurple, NATURE.grass, NATURE.rockSmall, NATURE.rockLarge];
+    const n = village ? 30 : 70;
+    for (let i = 0; i < n; i++) {
+      arr.push({ x:(rnd()-0.5)*worldSpanX(PX_W), z:(rnd()-0.5)*worldSpanY(PX_H),
+        s:0.7+rnd()*0.9, url:urls[Math.floor(rnd()*urls.length)], rot:rnd()*Math.PI*2 });
+    }
+    return arr;
+  }, [village]);
+  return <>{items.map((f,i) => (
+    <ModelBoundary key={i} fallback={null}>
+      <Model url={f.url} position={[f.x,0,f.z]} scale={f.s} rotation={f.rot} />
+    </ModelBoundary>
   ))}</>;
+}
+
+/* ---------- 新手村建筑：Kenney 中世纪素材（商店摊/喷泉/路灯/围栏/树） ---------- */
+function VillageBuildings() {
+  const W = worldSpanX(PX_W), H = worldSpanY(PX_H);
+  const deco = useMemo(() => [
+    { url: TOWN.stall, x: -W*0.30, z: -H*0.24, s: 2.2, rot: 0.3 },      // 商店摊
+    { url: TOWN.stallGreen, x: W*0.26, z: -H*0.26, s: 2.2, rot: -0.4 }, // 村长摊位
+    { url: TOWN.fountain, x: 0, z: H*0.10, s: 2.0, rot: 0 },            // 中央喷泉
+    { url: TOWN.lantern, x: -W*0.16, z: -H*0.10, s: 2.4, rot: 0 },
+    { url: TOWN.lantern, x: W*0.16, z: -H*0.10, s: 2.4, rot: 0 },
+    { url: TOWN.lantern, x: -W*0.16, z: H*0.26, s: 2.4, rot: 0 },
+    { url: TOWN.lantern, x: W*0.16, z: H*0.26, s: 2.4, rot: 0 },
+    { url: TOWN.rock, x: -W*0.36, z: H*0.30, s: 1.6, rot: 1.0 }
+  ], [W, H]);
+  // 围栏：沿村庄后排摆一排
+  const fences = useMemo(() => {
+    const arr: {x:number;z:number;rot:number}[] = [];
+    for (let i = -4; i <= 4; i++) arr.push({ x: i*1.6, z: -H*0.40, rot: 0 });
+    return arr;
+  }, [H]);
+  return <>
+    {deco.map((d,i) => (
+      <ModelBoundary key={i} fallback={<mesh position={[d.x,0.5,d.z]}><boxGeometry args={[1.5,1,1]} /><meshLambertMaterial color="#d9885a" /></mesh>}>
+        <Model url={d.url} position={[d.x,0,d.z]} scale={d.s} rotation={d.rot} />
+      </ModelBoundary>
+    ))}
+    {fences.map((f,i) => (
+      <ModelBoundary key={'f'+i} fallback={null}>
+        <Model url={TOWN.fence} position={[f.x,0,f.z]} scale={1.6} rotation={f.rot} />
+      </ModelBoundary>
+    ))}
+  </>;
 }
 
 /* ---------- 出口传送门标识（新手村上方 / 草原返回点） ---------- */
@@ -230,8 +320,8 @@ function FollowCamera({ engine }: { engine: GameEngine }) {
 function World({ engine, wildTick, mapId }: { engine: GameEngine; wildTick: number; mapId: string }) {
   const isVillage = mapId === 'qingya';
   const cfg = isVillage
-    ? { ground: '#8fce74', trees: 26, portal: '#f0b95c' }
-    : { ground: '#6cbf5a', trees: 90, portal: '#5fd0a6' };
+    ? { ground: '#8fce74', trees: 20, portal: '#f0b95c' }
+    : { ground: '#6cbf5a', trees: 42, portal: '#5fd0a6' };
   return (
     <>
       <color attach="background" args={['#8fd3f4']} />
@@ -242,8 +332,12 @@ function World({ engine, wildTick, mapId }: { engine: GameEngine; wildTick: numb
         <Sky />
         <Ground key={mapId} tint={cfg.ground} useTextureMap={!isVillage} />
       </Suspense>
-      <Trees count={cfg.trees} />
-      {isVillage ? <VillageBuildings /> : <WildMonsters engine={engine} tick={wildTick} />}
+      <Suspense fallback={null}>
+        <Trees count={cfg.trees} village={isVillage} />
+        <Foliage village={isVillage} />
+        {isVillage && <VillageBuildings />}
+      </Suspense>
+      {!isVillage && <WildMonsters engine={engine} tick={wildTick} />}
       <ExitPortal color={cfg.portal} />
       <Follower engine={engine} />
       <Player engine={engine} />

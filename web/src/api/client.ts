@@ -1,5 +1,5 @@
 /* API 客户端：登录 + 存档（对接 NestJS 后端） */
-import type { ApiResponse, LoginResult, SaveData, SaveResult, BattleSettleDto, CaptureSettleDto, SettleResult } from '@shared/types';
+import type { ApiResponse, LoginResult, SaveData, SaveResult, BattleSettleDto, CaptureSettleDto, SettleResult, QuestClaimDto, QuestClaimResult } from '@shared/types';
 
 const TOKEN_KEY = 'jingling_token';
 const API_BASE = ''; // 同源，Vite 代理到后端
@@ -39,6 +39,11 @@ export const api = {
   /** 捕获结算（服务端权威） */
   async settleCapture(dto: CaptureSettleDto): Promise<{ ok: boolean; result: SettleResult | null; message: string }> {
     const r = await request<SettleResult>('/api/game/capture', { method: 'POST', body: JSON.stringify(dto) });
+    return { ok: r.code === 0, result: r.data, message: r.message };
+  },
+  /** 任务奖励领取（服务端权威校验条件） */
+  async claimQuest(dto: QuestClaimDto): Promise<{ ok: boolean; result: QuestClaimResult | null; message: string }> {
+    const r = await request<QuestClaimResult>('/api/game/quest/claim', { method: 'POST', body: JSON.stringify(dto) });
     return { ok: r.code === 0, result: r.data, message: r.message };
   }
 };

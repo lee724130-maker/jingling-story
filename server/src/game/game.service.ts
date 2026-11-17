@@ -3,10 +3,12 @@
 import { Injectable } from '@nestjs/common';
 import { store } from '../common/store';
 import {
-  ERR, SaveData, Monster, BattleSettleDto, CaptureSettleDto, SettleResult
+  ERR, SaveData, Monster, BattleSettleDto, CaptureSettleDto, SettleResult,
+  QuestClaimDto, QuestClaimResult
 } from '../../../shared/types';
 import { seededRandom, captureRate, grantExp, makeMonster, checksum } from '../../../shared/rules';
 import { MONSTERS } from '../../../shared/gamedata';
+import { QUESTS, questFlag } from '../../../shared/quests';
 
 type ExpEventLike = { type: string; text: string };
 
@@ -144,5 +146,40 @@ export class GameService {
       this.settled.set(dto.battleId, rest as SettleResult);
     }
     return outcome;
+  }
+
+  /** 任务奖励领取：按权威存档校验条件是否达成，防重复领取，发奖后 version+1。
+   *  客户端无法伪造进度——步数/胜场/图鉴/等级全部来自服务端存档。 */
+  async claimQuest(uid: number, dto: QuestClaimDto): Promise<{ code: number; message: string; data: QuestClaimResult | null }> {
+    if (!uid || !dto?.questId) return { code: ERR.BAD_PARAMS, message: '参数不完整', data: null };
+    const def = QUESTS.find(q => q.id === dto.questId);
+    if (!def) return { code: ERR.BAD_PARAMS, message: '任务不存在', data: null };
+
+    const row = await store.getSave(uid);
+    if (!row) return { code: ERR.BAD_PARAMS, message: '存档不存在', data: null };
+    const save: SaveData = JSON.parse(JSON.stringify(row.data));
+
+    // 防重复领取
+    if (save.progress.flags.includes(questFlag(def.id))) {
+      return { code: ERR.DUPLICATE_SETTLE, message: '该任务奖励已领取', data: null };
+    }
+    // 条件校验：从权威存档实时计算，客户端无法伪造
+    if (def.progress(save) < def.goal) {
+      return { code: ERR.BAD_PARAMS, message: '任务尚未完成', data: null };
+    }
+
+    // 发奖
+    const r = def.reward;
+    if (r.coins) save.resources.coins += r.coins;
+    if (r.ball) save.bag.ball = (save.bag.ball || 0) + r.ball;
+    if (r.herb) save.bag.herb = (save.bag.herb || 0) + r.herb;
+    save.progress.flags.push(questFlag(def.id));
+
+    const nextVersion = row.version + 1;
+    const written = await store.putSave(uid, nextVersion, save);
+    return {
+      code: ERR.OK, message: 'ok',
+      data: { questId: def.id, reward: r, version: written.version, data: written.data }
+    };
   }
 }

@@ -72,6 +72,17 @@ export interface CaptureSettleDto {
   clientChecksum: string;
 }
 
+/** 任务奖励领取上报：只需任务 id，条件由服务端按权威存档校验 */
+export interface QuestClaimDto { questId: string; }
+
+/** 任务领取返回 */
+export interface QuestClaimResult {
+  questId: string;
+  reward: { coins?: number; ball?: number; herb?: number };
+  version: number;
+  data: SaveData;
+}
+
 /** 结算返回：权威结果 + 最新存档（version 递增） */
 export interface SettleResult {
   coinsGained: number;

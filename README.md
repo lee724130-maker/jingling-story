@@ -14,7 +14,7 @@
 | 3D 渲染 | Three.js + React Three Fiber + Drei（第三人称场景 / 2.5D 广告牌）|
 | 后端 | NestJS 10 + TypeScript |
 | 数据库 | MySQL 独立库 `jingling_story`（`STORAGE_MODE=mysql`，可切 `local`）|
-| 共享 | `shared/types.ts` 共用类型 · `shared/gamedata.ts` 共用配置 · `shared/rules.ts` 共用战斗规则 |
+| 共享 | `shared/types.ts` 共用类型 · `shared/gamedata.ts` 共用配置 · `shared/rules.ts` 共用战斗规则 · `shared/quests.ts` 共用任务定义 |
 | 美术 | AI 立绘（男/女训练师、精灵群像裁切头像、草原地面、天空远景）+ 程序化补齐（树木/水面/地形）+ Canvas 2D 战斗特效 |
 | 认证 | 本地测试账号 + JWT（微信 UnionID 登录后补）|
 
@@ -24,7 +24,7 @@
 精灵物语/
 ├── web/         # React 前端（Vite，端口 5180）
 │   └── src/
-│       ├── components/        # TitleScreen / BattleUI / SummonUI / Panel / SpiritArt
+│       ├── components/        # TitleScreen / BattleUI / SummonUI / Panel / QuestPanel / SpiritArt
 │       ├── game/
 │       │   ├── world3d/       # 第三人称 3D 场景：coords / useBillboardTexture / Scene3D
 │       │   ├── engine.ts      # 游戏引擎：野怪游荡 / 投球过场 / 战斗状态机 / 权威结算接入
@@ -34,7 +34,7 @@
 │       └── public/art/        # AI 素材：trainer_male/female / spirits / scene_grass / scene_sky
 ├── server/      # NestJS 后端（端口 3000）
 │   └── src/{auth,player,game,common}
-├── shared/      # 前后端共享：types / gamedata / rules
+├── shared/      # 前后端共享：types / gamedata / rules / quests
 └── docs/        # MySQL 配置、E2E 脚本、AI 素材生成脚本
 ```
 
@@ -83,6 +83,13 @@ Vite 已配 `/api` 代理到后端 3000，前端 API 请求走同源。
 - 存档经 API 存服务端，version 乐观锁（冲突返回 2001 并同步最新存档）
 - 男女双主角 AI 立绘
 
+### 冒险任务与新手引导
+
+- **7 个渐进任务**：启程第一步（走 30 步）→ 初次对战（1 胜）→ 精灵收藏家（捕获 2 只）→ 见多识广（图鉴 5 种）→ 身经百战（5 胜）→ 训练有素（Lv.10）→ 图鉴大师（捕获 8 种），奖励金币/灵兽球/活力草
+- **进度零存储**：全部从权威存档字段实时推导（步数/胜场/图鉴/队伍等级），不新增数据表；任务定义集中 `shared/quests.ts` 前后端共用
+- **服务端权威领奖**：`POST /api/game/quest/claim` 校验条件达成后才发奖，标记写入 `progress.flags` 防重复领取（重复返 3003、未完成返 3001），发奖后 version 递增并整体同步权威存档
+- **引导反馈**：HUD「任务」入口带可领取红点；任务刚完成时弹 Toast 提示；首次登录对话引导玩家去走第一步
+
 ## MySQL 数据库（已启用，与主项目隔离）
 
 - 已在 MySQL（8.4.11）新建**独立库 `jingling_story`**，只含 `users` / `saves` 两张表。
@@ -99,14 +106,15 @@ Vite 已配 `/api` 代理到后端 3000，前端 API 请求走同源。
 - `docs/_e2e_settle.js`：前端结算 E2E（金币 100→130、version 递增、零错误）
 - `docs/_e2e_3d.js`：第三人称 3D E2E（WebGL 渲染 / WASD 移动 / 野怪存在 / 可进入 summon+battle / 零错误）
 - `docs/_e2e_battle.js`：战斗演出 E2E（AI 精灵贴图渲染 / 技能特效触发与进度 / 横幅 / 结束后清除 / 零错误）
+- `docs/_e2e_quest.js`：任务系统 E2E（面板渲染 / 权威领奖金币+30 / 防重复 3003 / 未完成 3001 / 刷新持久化 / 零错误）
 
 ## 后续
 
 - 战斗主画面升级为完整 3D 演出（当前为 3D 背景 + 2D 战斗特效层混合，精灵已用 AI 贴图形象）
 - 人物/精灵由 2.5D 广告牌升级为真 3D 骨骼模型
 - 微信开放平台 UnionID 登录（资质就绪后）
-- 微信小游戏端适配：当前 React DOM 方案不能直接跑进微信小游戏，需提前做架构决策
-- 内容扩充：更多地图/精灵/任务/进化链/音效/新手引导
+- 微信小游戏端适配：架构已定案 Cocos Creator 3.x 重做表现层，详见 `docs/双端适配方案.md`
+- 内容扩充：更多地图/精灵/进化链/音效（任务系统与新手引导已完成）
 - summon 过场偶发黑屏的精确排查（当前已加渐变兜底）
 
 ## 说明

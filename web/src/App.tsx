@@ -7,11 +7,13 @@ import { MAP, MONSTERS, TYPES, TILE, ART } from './game/config';
 import { drawBattleSpirit, drawBall, drawBeam } from './game/sprites';
 import { drawSkillFx } from './game/battleFx';
 import { preloadSpirits } from './game/spiritCanvas';
+import { claimableCount, allQuestViews } from '@shared/quests';
 import Scene3D from './game/world3d/Scene3D';
 import TitleScreen from './components/TitleScreen';
 import Hud from './components/Hud';
 import BattleUI from './components/BattleUI';
 import Panel from './components/Panel';
+import QuestPanel from './components/QuestPanel';
 import Dialog from './components/Dialog';
 import Toast from './components/Toast';
 import SummonUI from './components/SummonUI';
@@ -32,6 +34,9 @@ export default function App() {
   const [toast, setToast] = useState('');
   const [version, setVersion] = useState(0);
   const [summonCaption, setSummonCaption] = useState('');
+  const [questOpen, setQuestOpen] = useState(false);
+  const [claiming, setClaiming] = useState<string | null>(null);
+  const questNotified = useRef<Set<string>>(new Set());
 
   const showToast = useCallback((m: string) => {
     setToast(m);
@@ -65,6 +70,13 @@ export default function App() {
     eng.onUpdate = (s) => {
       setEngineState({ ...s });
       if (s.scene === 'summon') setSummonCaption(eng.summonCaption());
+      // 新手引导：任务刚完成时提示领取（每帧检测，用 ref 去重，避免重复弹）
+      for (const v of allQuestViews(eng.save)) {
+        if (v.complete && !v.claimed && !questNotified.current.has(v.id)) {
+          questNotified.current.add(v.id);
+          showToast(`任务完成：${v.title}！点右上角「任务」领奖`);
+        }
+      }
     };
     eng.onSaveDirty = () => markDirty();
     eng.onDialog = (lines) => setDialog(lines);
@@ -211,12 +223,34 @@ export default function App() {
       if (r.data) launch(r.data, r.version);
       else launch(createNewSave(username, gender), 0);
       showToast('欢迎来到精灵物语，' + username + '！');
-      setDialog(['欢迎来到精灵物语！', '草地上能看到游荡的野生精灵。', '走近它们（碰到即可）就会开战，去试试吧！']);
+      setDialog(['欢迎来到精灵物语！', '草地上能看到游荡的野生精灵，走近它们（碰到即可）就会开战。',
+        '右上角「任务」里有冒险目标，完成就能领金币和道具。先去走走，完成「启程的第一步」吧！']);
     } catch (e: any) { showToast('登录失败: ' + e.message); }
   };
 
   const battleAction = (action: any, idx?: number) => engineRef.current?.battleAction(action, idx);
   const switchAlly = (idx: number) => engineRef.current?.switchAlly(idx);
+
+  // 领取任务奖励：服务端权威校验并发奖，成功后整体同步存档
+  const handleClaim = async (questId: string) => {
+    const eng = engineRef.current;
+    if (!eng || claiming) return;
+    setClaiming(questId);
+    try {
+      const r = await api.claimQuest({ questId });
+      if (!r.ok || !r.result) { showToast(r.message || '领取失败'); setClaiming(null); return; }
+      eng.applySave(r.result.data, r.result.version);
+      const rw = r.result.reward, parts: string[] = [];
+      if (rw.coins) parts.push(`◈${rw.coins}`);
+      if (rw.ball) parts.push(`灵兽球×${rw.ball}`);
+      if (rw.herb) parts.push(`活力草×${rw.herb}`);
+      showToast('任务奖励已领取：' + parts.join(' '));
+    } catch (e: any) {
+      showToast('领取失败: ' + e.message);
+    } finally {
+      setClaiming(null);
+    }
+  };
 
   return (
     <div id="app">
@@ -242,7 +276,8 @@ export default function App() {
           {/* 2D 特效叠加层：投球/战斗精灵与球动画 */}
           <canvas ref={canvasRef} width={640} height={448} className="fx-canvas" />
 
-          {stage === 'game' && engineState && <Hud save={engineRef.current!.save} />}
+          {stage === 'game' && engineState && <Hud save={engineRef.current!.save}
+            claimable={claimableCount(engineRef.current!.save)} onOpenQuest={() => setQuestOpen(true)} />}
           {stage === 'game' && engineState?.scene === 'world' && !panel && !dialog.length &&
             <div className="hint">方向键/WASD 移动 · 走近草地上游荡的野怪触发战斗 · Esc 菜单</div>}
 
@@ -255,7 +290,13 @@ export default function App() {
             <BattleUI battle={engineState.battle} onAction={battleAction} onSwitch={switchAlly} save={engineRef.current!.save} />}
 
           {panel && stage === 'game' && <Panel name={panel} save={engineRef.current!.save}
-            onClose={() => setPanel(null)} onNavigate={(n) => setPanel(n)} />}
+            onClose={() => setPanel(null)} onNavigate={(n) => {
+              if (n === 'quest') { setPanel(null); setQuestOpen(true); }
+              else setPanel(n);
+            }} />}
+
+          {questOpen && stage === 'game' && <QuestPanel save={engineRef.current!.save}
+            onClose={() => setQuestOpen(false)} onClaim={handleClaim} claiming={claiming} />}
 
           {dialog.length > 0 && <Dialog lines={dialog} onNext={() => setDialog(d => d.slice(1))} />}
           {toast && <Toast text={toast} />}

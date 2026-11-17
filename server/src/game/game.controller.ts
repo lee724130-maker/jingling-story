@@ -1,7 +1,7 @@
 import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '../common/auth.guard';
 import { GameService } from './game.service';
-import { ApiResponse, BattleSettleDto, CaptureSettleDto } from '../../../shared/types';
+import { ApiResponse, BattleSettleDto, CaptureSettleDto, QuestClaimDto } from '../../../shared/types';
 
 /* 服务端权威结算：战斗/捕获奖励由服务端按共享规则重算，客户端只上报上下文 */
 @Controller('api/game')
@@ -18,6 +18,12 @@ export class GameController {
   @Post('capture')
   async capture(@Req() req: any, @Body() dto: CaptureSettleDto): Promise<ApiResponse<any>> {
     const r = await this.game.settleCapture(req.user.uid, dto);
+    return { code: r.code, message: r.message, data: r.data };
+  }
+
+  @Post('quest/claim')
+  async claimQuest(@Req() req: any, @Body() dto: QuestClaimDto): Promise<ApiResponse<any>> {
+    const r = await this.game.claimQuest(req.user.uid, dto);
     return { code: r.code, message: r.message, data: r.data };
   }
 }

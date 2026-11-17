@@ -490,6 +490,13 @@ export class GameEngine {
     this.onAuthoritativeSave(res.data, res.version);
   }
 
+  /** 用服务端返回的权威存档整体覆盖本地（任务领奖等非结算场景也复用） */
+  applySave(save: SaveData, version: number) {
+    this.save = save;
+    this.version = version;
+    this.onAuthoritativeSave(save, version);
+  }
+
   /** 战斗结束结算：win/faint/run 统一走服务端，返回权威存档 */
   private settleBattleResult(result: 'win' | 'faint' | 'run', enemySpecies: number, enemyLevel: number) {
     if (this.settled) return Promise.resolve(null);

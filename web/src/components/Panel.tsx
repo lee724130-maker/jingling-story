@@ -13,7 +13,7 @@ export default function Panel({ name, save, onClose, onNavigate }: {
   const titles: Record<string,string> = { menu:'菜单', team:'队伍与仓库', bag:'背包', dex:'精灵图鉴', save:'存档管理', help:'玩法说明' };
   const content = () => {
     if (name === 'menu') return <div className="menu-list">
-      {[['team','队伍','查看与切换出战精灵'],['bag','背包','灵兽球 · 活力草'],['dex','精灵图鉴','已见 / 已捕获'],['save','存档管理','云端存档信息'],['help','玩法说明','']].map(([k,t,s]) =>
+      {[['team','队伍','查看与切换出战精灵'],['bag','背包','灵兽球 · 活力草'],['dex','精灵图鉴','已见 / 已捕获'],['quest','冒险任务','完成任务领奖励'],['save','存档管理','云端存档信息'],['help','玩法说明','']].map(([k,t,s]) =>
         <button key={k} className="menu-item" onClick={() => onNavigate(k)}>{t}<small>{s}</small></button>)}
     </div>;
     if (name === 'team') {
@@ -53,10 +53,11 @@ export default function Panel({ name, save, onClose, onNavigate }: {
       <p style={{color:'var(--accent)'}}>数据库与主项目 ai_anime 完全隔离，互不干扰。</p>
     </div>;
     if (name === 'help') return <div className="center-note">
-      <p>1. 方向键/WASD 移动，走进绿色草丛遇到野生精灵。</p>
+      <p>1. 方向键/WASD 移动，走上野怪即投球出战（不再随机遇敌）。</p>
       <p>2. 战斗用技能削弱对方，或用灵兽球捕获。</p>
       <p>3. 战斗得经验，升级进化；精灵性别与性格捕获时随机。</p>
-      <p>4. 走到地图右下角疗伤石碑恢复全队。</p>
+      <p>4. 右上角「任务」里有冒险目标，完成后点领取拿金币和道具。</p>
+      <p>5. 走到地图右下角疗伤石碑恢复全队。</p>
     </div>;
     return null;
   };

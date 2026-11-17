@@ -54,7 +54,7 @@ const SKILL_FX_DUR = 620;
 
 export interface EngineState {
   scene: Scene;
-  player: { x: number; y: number; dir: number; walking: boolean };
+  player: { x: number; y: number; dir: number; walking: boolean; running: boolean };
   message: string;
   battle: BattleView | null;
   summon: SummonView | null;
@@ -73,6 +73,12 @@ export class GameEngine {
   state: EngineState;
   version = 0;
   private keys: Record<string, boolean> = {};
+  /** 点击地面移动的目标点（像素坐标），null 表示无目标 */
+  private moveTarget: { x: number; y: number } | null = null;
+  /** 是否小跑（Shift+点击 或 Shift+WASD） */
+  private running = false;
+  /** 点击寻路撞墙累计帧，用于不可达保护 */
+  private stuckFrames = 0;
   private healUsed = false;
   private frame = 0;
   private raf = 0;
@@ -129,7 +135,7 @@ export class GameEngine {
     const st = this.findStart();
     this.state = {
       scene: 'world',
-      player: { x: st.x * TILE + TILE / 2, y: st.y * TILE + TILE / 2 - 4, dir: 1, walking: false },
+      player: { x: st.x * TILE + TILE / 2, y: st.y * TILE + TILE / 2 - 4, dir: 1, walking: false, running: false },
       message: '', battle: null, summon: null, wilds: []
     };
     this.initWilds();
@@ -139,6 +145,17 @@ export class GameEngine {
   stop() { cancelAnimationFrame(this.raf); }
   setKey(k: string, v: boolean) { this.keys[k] = v; }
   getFrame() { return this.frame; }
+
+  /** 左键点击地面：设置移动目标（像素坐标）。会立即清除键盘方向键的持续输入 */
+  setMoveTarget(px: number, py: number, running = false) {
+    this.moveTarget = { x: px, y: py };
+    this.running = running;
+    this.keys.up = this.keys.down = this.keys.left = this.keys.right = false;
+  }
+  /** 停止自动寻路（手动 WASD / 交互 / 切场景时调用） */
+  clearMoveTarget() { this.moveTarget = null; this.running = false; this.state.player.running = false; }
+  /** 设置小跑状态（Shift 键，作用于 WASD 与点击移动） */
+  setRun(v: boolean) { this.running = v; if (!this.moveTarget) this.state.player.running = v; }
 
   private loop = (t: number) => {
     const dt = Math.min(40, t - this.lastT || 16); this.lastT = t;
@@ -256,7 +273,8 @@ export class GameEngine {
     const sp = spawn || this.findStartAfterSwitch(to);
     const p = this.state.player;
     p.x = sp.x * TILE + TILE / 2; p.y = sp.y * TILE + TILE / 2 - 4;
-    p.walking = false;
+    p.walking = false; p.running = false;
+    this.clearMoveTarget();
     this.activeWild = null;
     this.cooldown = 1500; // 切图后短暂冷却，避免立刻触发遭遇
     this.initWilds();
@@ -271,41 +289,91 @@ export class GameEngine {
     return { x: 2, y: 2 };
   }
 
+  /** 尝试把玩家移动 (dx,dy)*speed，带元胞碰撞与轴向滑动；返回实际是否移动 */
+  private tryMovePlayer(dx: number, dy: number, speed: number): boolean {
+    const p = this.state.player;
+    const r = 9; // 碰撞半径（像素）
+    const canStand = (px: number, py: number) => {
+      const col = Math.floor(px / TILE), row = Math.floor(py / TILE);
+      // 四角探测，确保角色体积不穿墙
+      return isWalkable(this.cellAt(col, row))
+        && isWalkable(this.cellAt(Math.floor((px - r) / TILE), Math.floor((py - r) / TILE)))
+        && isWalkable(this.cellAt(Math.floor((px + r) / TILE), Math.floor((py - r) / TILE)))
+        && isWalkable(this.cellAt(Math.floor((px - r) / TILE), Math.floor((py + r) / TILE)))
+        && isWalkable(this.cellAt(Math.floor((px + r) / TILE), Math.floor((py + r) / TILE)));
+    };
+    let moved = false;
+    const nx = p.x + dx * speed, ny = p.y + dy * speed;
+    if (canStand(nx, ny)) { p.x = nx; p.y = ny; moved = true; }
+    else {
+      // 轴向滑动：贴墙时仍可沿另一轴移动
+      if (dx && canStand(p.x + dx * speed, p.y)) { p.x += dx * speed; moved = true; }
+      if (dy && canStand(p.x, p.y + dy * speed)) { p.y += dy * speed; moved = true; }
+    }
+    if (moved && dx) p.dir = dx > 0 ? 1 : -1;
+    return moved;
+  }
+
+  /** 玩家踏入格子后的结算：疗伤、出口切换、步数 */
+  private afterPlayerStep() {
+    const p = this.state.player;
+    this.save.profile.steps++;
+    const col = Math.floor(p.x / TILE), row = Math.floor(p.y / TILE), ch = this.cellAt(col, row);
+    if (ch === 'H' && !this.healUsed) {
+      this.healUsed = true;
+      this.save.lastHeal = { x: col, y: row };
+      this.save.team.forEach(m => m.hp = m.maxHp);
+      this.onDialog(['疗伤石碑亮起柔和的光芒……', '全队精灵的生命已完全恢复！']);
+      setTimeout(() => this.healUsed = false, 100);
+      this.onSaveDirty();
+    }
+    if (ch === 'E' && this.cooldown <= 0) {
+      const exit = this.map.exits.find(e => e.x === col && e.y === row);
+      if (exit) { this.clearMoveTarget(); this.switchMap(exit.to, exit.spawn); }
+    }
+  }
+
   private updateWorld(dt: number) {
     if (this.cooldown > 0) this.cooldown -= dt;
-    let dx = 0, dy = 0;
-    if (this.keys.up) dy = -1; else if (this.keys.down) dy = 1; else if (this.keys.left) dx = -1; else if (this.keys.right) dx = 1;
     const p = this.state.player;
-    p.walking = !!(dx || dy);
+    let dx = 0, dy = 0;
+    const kbUp = this.keys.up, kbDown = this.keys.down, kbLeft = this.keys.left, kbRight = this.keys.right;
+    if (kbUp) dy = -1; else if (kbDown) dy = 1; else if (kbLeft) dx = -1; else if (kbRight) dx = 1;
+
+    // 键盘输入优先，接管后清除点击目标
     if (dx || dy) {
-      const speed = 2.3 * (dt / 16);
-      const nx = p.x + dx * speed, ny = p.y + dy * speed, r = 9;
-      const colX = Math.floor(nx / TILE), rowY = Math.floor(p.y / TILE);
-      const colX2 = Math.floor((nx + (dx > 0 ? r : -r)) / TILE), rowY2 = Math.floor((ny + (dy > 0 ? r : -r)) / TILE);
-      if (isWalkable(this.cellAt(colX2, rowY)) && isWalkable(this.cellAt(colX, rowY2))) {
-        p.x = nx; p.y = ny; if (dx) p.dir = dx;
-        this.save.profile.steps++;
-        const col = Math.floor(p.x / TILE), row = Math.floor(p.y / TILE), ch = this.cellAt(col, row);
-        if (ch === 'H' && !this.healUsed) {
-          this.healUsed = true;
-          this.save.lastHeal = { x: col, y: row };
-          this.save.team.forEach(m => m.hp = m.maxHp);
-          this.onDialog(['疗伤石碑亮起柔和的光芒……', '全队精灵的生命已完全恢复！']);
-          setTimeout(() => this.healUsed = false, 100);
-          this.onSaveDirty();
-        }
-        // 走上出口自动切换区域（无需按键，走进去即触发）
-        if (ch === 'E' && this.cooldown <= 0) {
-          const exit = this.map.exits.find(e => e.x === col && e.y === row);
-          if (exit) this.switchMap(exit.to, exit.spawn);
-        }
+      if (this.moveTarget) this.clearMoveTarget();
+      const speed = (this.running ? 3.7 : 2.3) * (dt / 16);
+      p.walking = this.tryMovePlayer(dx, dy, speed);
+      p.running = this.running && p.walking;
+      if (p.walking) this.afterPlayerStep();
+    } else if (this.moveTarget) {
+      // 点击地面自动寻路（直线 + 轴向滑动绕障）
+      const tx = this.moveTarget.x, ty = this.moveTarget.y;
+      const dist = Math.hypot(tx - p.x, ty - p.y);
+      if (dist < 6) {
+        this.clearMoveTarget();
+        p.walking = false; p.running = false;
+      } else {
+        const speed = (this.running ? 3.7 : 2.3) * (dt / 16);
+        const ux = (tx - p.x) / dist, uy = (ty - p.y) / dist;
+        p.walking = this.tryMovePlayer(ux, uy, speed);
+        p.running = this.running && p.walking;
+        if (p.walking) this.afterPlayerStep();
+        // 卡墙超时保护：目标不可达时避免永久移动
+        this.stuckFrames = p.walking ? 0 : this.stuckFrames + 1;
+        if (this.stuckFrames > 24) { this.clearMoveTarget(); p.walking = false; p.running = false; this.stuckFrames = 0; }
       }
+    } else {
+      p.walking = false; p.running = false;
     }
     this.updateWilds(dt);
   }
 
   // ---------- 投球出战过场 ----------
   private beginEncounter(w: WildSpirit) {
+    this.clearMoveTarget();
+    this.state.player.walking = false;
     this.activeWild = w;
     w.alert = 2000;
     this.allyIndex = Math.max(0, this.save.team.findIndex(m => m.hp > 0));

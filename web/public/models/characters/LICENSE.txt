@@ -1,0 +1,6 @@
+Character model: RobotExpressive.glb
+Source: three.js official example (mrdoob/three.js, examples/models/gltf/RobotExpressive)
+License: MIT (three.js examples). Free for commercial and personal use.
+URL: https://github.com/mrdoob/three.js/tree/master/examples/models/gltf/RobotExpressive
+Animations included: Idle, Walking, Running, Dance, Jump, Wave, Punch, etc.
+Material colors are customized at runtime to differentiate player/NPCs.

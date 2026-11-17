@@ -234,6 +234,7 @@ export default function App() {
     if (!eng || stage !== 'game') return;
     const set = (e: KeyboardEvent, v: boolean) => {
       const k = e.key.toLowerCase();
+      if (k === 'shift') { eng.setRun(v); return; }
       const map: Record<string, string> = { arrowup: 'up', w: 'up', arrowdown: 'down', s: 'down', arrowleft: 'left', a: 'left', arrowright: 'right', d: 'right' };
       if (map[k]) { eng.setKey(map[k], v); e.preventDefault(); }
     };
@@ -270,10 +271,10 @@ export default function App() {
         setDialog(['欢迎来到青芽村，年轻的冒险家！',
           '这里是新手村，很安全，没有野生精灵。',
           '先去找村长木老（地图上他的标记），选一只初始伙伴，再踏上旅途吧！',
-          '提示：走到 NPC 或出口附近，按 空格键 交互。']);
+          '提示：左键点击地面即可移动，点 NPC 或出口即可交互（按住 Shift 小跑）。']);
         setDialogDone(null);
       } else {
-        setDialog(['欢迎回到青芽村！', '走向地图上方的出口可前往大草原捕捉精灵；走近 NPC 按空格键对话。']);
+        setDialog(['欢迎回到青芽村！', '左键点地面移动、点 NPC 对话；地图上方出口通往大草原（按住 Shift 可小跑）。']);
         setDialogDone(null);
       }
     } catch (e: any) { showToast('登录失败: ' + e.message); }
@@ -363,7 +364,7 @@ export default function App() {
           {stage === 'game' && engineState && <Hud save={engineRef.current!.save} mapName={mapName}
             claimable={claimableCount(engineRef.current!.save)} onOpenQuest={() => setQuestOpen(true)} />}
           {stage === 'game' && engineState?.scene === 'world' && !panel && !dialog.length && !nearNpc && !starterOpen && !shopOpen &&
-            <div className="hint">WASD 移动 · 走到 NPC/出口旁按 空格 交互 · Esc 菜单</div>}
+            <div className="hint">左键点地面移动（按住 Shift 小跑）· 点 NPC/出口交互 · 也可 WASD + 空格 · Esc 菜单</div>}
           {stage === 'game' && engineState?.scene === 'world' && nearNpc && !dialog.length && !panel && !starterOpen && !shopOpen &&
             <div className="npc-hint">按 <kbd>空格</kbd> 与 <b>{nearNpc.name}</b> 交互</div>}
 
@@ -398,7 +399,9 @@ export default function App() {
         <div className="controls-help">
           <div className="help-title">操作说明</div>
           <div className="help-grid">
+            <div><kbd>左键点击</kbd><span>地面移动 / 点 NPC 交互</span></div>
             <div><kbd>↑↓←→</kbd>/<kbd>WASD</kbd><span>移动</span></div>
+            <div><kbd>Shift</kbd><span>按住小跑（点击或键盘）</span></div>
             <div><kbd>空格</kbd>/<kbd>E</kbd><span>与 NPC / 出口交互</span></div>
             <div><kbd>回车</kbd><span>确认对话</span></div>
             <div><kbd>Esc</kbd><span>菜单</span></div>

@@ -15,7 +15,7 @@
 | 后端 | NestJS 10 + TypeScript |
 | 数据库 | MySQL 独立库 `jingling_story`（`STORAGE_MODE=mysql`，可切 `local`）|
 | 共享 | `shared/types.ts` 类型 · `shared/gamedata.ts` 配置 · `shared/rules.ts` 战斗规则 · `shared/quests.ts` 任务 · `shared/maps.ts` 多地图/NPC/商店 |
-| 美术 | AI 立绘（男/女训练师、精灵群像裁切头像、草原地面、天空远景）+ Kenney CC0 3D 模型（树木/花草/岩石/商店摊/喷泉/路灯/围栏）+ Canvas 2D 战斗特效 |
+| 美术 | AI 立绘（精灵群像裁切头像、草原地面、天空远景）+ Kenney CC0 3D 场景模型（树木/花草/岩石/商店摊/喷泉/路灯/围栏）+ three.js 官方 MIT 骨骼动画人物（hero.glb，玩家/NPC，Idle/Walking/Running）+ Canvas 2D 战斗特效 |
 | 认证 | 本地测试账号 + JWT（微信 UnionID 登录后补）|
 
 ## 目录结构
@@ -32,7 +32,7 @@
 │       │   ├── config.ts      # 转发 @shared/gamedata
 │       │   └── model.ts       # 复用 @shared/rules 建精灵
 │       ├── public/art/        # AI 素材：trainer_male/female / spirits / scene_grass / scene_sky
-│       └── public/models/     # Kenney CC0 3D 素材：nature/（树花草岩石）+ town/（摊/喷泉/路灯/围栏，含 Textures/colormap.png）
+│       └── public/models/     # nature/（树花草岩石）+ town/（摊/喷泉/路灯/围栏，含 colormap.png）+ characters/（hero.glb 骨骼动画人物，MIT）
 ├── server/      # NestJS 后端（端口 3000）
 │   └── src/{auth,player,game,common}
 ├── shared/      # 前后端共享：types / gamedata / rules / quests / maps
@@ -59,10 +59,12 @@ Vite 已配 `/api` 代理到后端 3000，前端 API 请求走同源。
 
 ### 第三人称 3D 世界（第一版垂直切片）
 
-- **第三人称视角**：Three.js / React Three Fiber / Drei 搭建，跟随相机锁定玩家，方向键 / WASD 操控移动
-- **范围空间场景**：AI 生成的草原地面贴图 + 蓝天白云远山天空图，树木/花草/岩石/村庄建筑改用 **Kenney CC0 3D 模型**（GLB，`useGLTF` 加载 + 失败回退程序化几何体），水面与地形边界程序化补齐（AI 生成场景图 + 可商用素材 + 程序化补齐方案）
-- **2.5D 广告牌角色**：AI 生成的人物/精灵立绘作为朝向相机的贴图平面，运行时抠图（浅绿背景/白底转透明），保留 AI 画风并呈现浮动/待机动效
-- 玩家身后跟随出战精灵；地图上 6 只野怪游荡、浮动、发现玩家显示警戒感叹号
+- **第三人称视角**：Three.js / React Three Fiber / Drei 搭建，跟随相机锁定玩家，支持 **左键点地面寻路移动** 与 **WASD / 方向键** 两种操控
+- **左键点击交互**：点地面自动寻路（直线 + 轴向滑动绕障 + 不可达保护），点 NPC/出口/野怪直接交互；按住 **Shift** 或点击时带 Shift 进入小跑（速度 3.7 vs 走路 2.3）
+- **3D 骨骼动画人物**：玩家与 NPC 用 three.js 官方 MIT 模型 `hero.glb`（`useGLTF` + `useAnimations` + `SkeletonUtils.clone` 深拷贝骨骼/材质），按状态播放 **Idle / Walking / Running** 动画；玩家男女配色区分、NPC 按角色着色、包围盒自动对齐脚底，模型加载失败回退占位
+- **范围空间场景**：AI 生成的草原地面贴图 + 蓝天白云远山天空图，树木/花草/岩石/村庄建筑改用 **Kenney CC0 3D 模型**（GLB，`useGLTF` 加载 + 失败回退程序化几何体），水面与地形边界程序化补齐
+- **2.5D 广告牌精灵**：AI 精灵立绘作为朝向相机的贴图平面（战斗与野怪），运行时抠白底；人物已升级为真 3D 模型
+- 玩家身后跟随出战精灵；地图上 6 只野怪游荡、浮动、发现玩家显示警戒感叹号；点野怪可自动走过去触发战斗
 - 3D 世界作为底层，战斗/投球过场用 2D Canvas 特效层叠加，兼顾画面表现与开发效率
 
 ### 双区域地图：新手村 + 野外副本
@@ -125,6 +127,7 @@ Vite 已配 `/api` 代理到后端 3000，前端 API 请求走同源。
 - `docs/_e2e_battle.js`：战斗演出 E2E（AI 精灵贴图渲染 / 技能特效触发与进度 / 横幅 / 结束后清除 / 零错误）
 - `docs/_e2e_quest.js`：任务系统 E2E（面板渲染 / 权威领奖金币+30 / 防重复 3003 / 未完成 3001 / 刷新持久化 / 零错误）
 - `docs/_e2e_village.js`：新手村系统 E2E（19 项全过：空队伍开局 / 无野怪 / 三选一 / 防重复选宠 / 商店扣款 / 金币不足 / 场景往返切换 / 野怪随区域增减 / 刷新持久化 / 零错误）
+- `docs/_e2e_interact.js`：点击交互 E2E（7 项全过：hero.glb 3D 人物加载 / 点击寻路位移 / 小跑快于走路 / Shift 切换 / 点 NPC 交互 / 真实鼠标点地面寻路 / 零错误）
 
 ## 后续
 

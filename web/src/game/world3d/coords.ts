@@ -8,3 +8,8 @@ export function pxToWorld(px: number, py: number): [number, number] {
 }
 export function worldSpanX(px: number) { return px * SCALE; }
 export function worldSpanY(py: number) { return py * SCALE; }
+
+/** 3D 世界坐标 → 2D 像素坐标（点击地面寻路用，pxToWorld 的逆运算） */
+export function worldToPx(wx: number, wz: number): [number, number] {
+  return [wx / SCALE + PX_W / 2, wz / SCALE + PX_H / 2];
+}

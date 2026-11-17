@@ -16,19 +16,22 @@ const HERO_URL = '/models/characters/hero.glb';
 useGLTF.preload(HERO_URL);
 
 /* ==================== 带骨骼动画的 3D 人物 ==================== */
-/** 动画名映射：逻辑态(Idle/Walking/Running) → 模型剪辑名（Xbot 为小写 idle/walk/run） */
-const ANIM_CLIP: Record<string, string> = { Idle: 'idle', Walking: 'walk', Running: 'run' };
+/** 动画名映射：逻辑态 → Soldier 模型剪辑名（首字母大写 Idle/Walk/Run） */
+const ANIM_CLIP: Record<string, string> = { Idle: 'Idle', Walking: 'Walk', Running: 'Run' };
 
-/** 克隆材质并按角色着色：给身体/关节主色，保留少量原色点缀 */
-function tintMaterial(mat: THREE.Material, color: string): THREE.Material {
+/** 克隆材质，保留模型自带纹理质感；可选轻微色调区分角色（与纹理相乘，不覆盖贴图） */
+function cloneMaterial(mat: THREE.Material, tint?: string): THREE.Material {
   const m = mat.clone();
-  const mm = m as THREE.MeshStandardMaterial;
-  if (mm.color) mm.color.set(color);
+  if (tint) {
+    const mm = m as THREE.MeshStandardMaterial;
+    // color 与 map 相乘：轻微染色既保留纹理明暗，又能区分角色
+    if (mm.color) mm.color.set(tint);
+  }
   return m;
 }
 
-/** 玩家/NPC 通用模型：加载 hero.glb(Xbot 人形)，克隆骨骼，运行时着色，按状态播放 idle/walk/run */
-function useHeroModel(color: string) {
+/** 玩家/NPC 通用模型：加载 hero.glb(带纹理 Soldier)，克隆骨骼与材质，按状态播放 Idle/Walk/Run */
+function useHeroModel(tint?: string) {
   const group = useRef<THREE.Group>(null!);
   const { scene, animations } = useGLTF(HERO_URL);
   const { actions } = useAnimations(animations, group);
@@ -37,19 +40,19 @@ function useHeroModel(color: string) {
     c.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
       if (mesh.isMesh && mesh.material) {
-        // 必须深拷贝材质本身：SkeletonUtils.clone 只克隆骨骼层级，材质仍共享，
-        // 直接改 color 会让所有角色实例互相覆盖成同一颜色。
+        // 深拷贝材质：SkeletonUtils.clone 只克隆骨骼层级，材质仍共享。
+        // tint 可选——不传则完全保留原纹理质感（玩家/NPC 用同一套装甲外观）。
         if (Array.isArray(mesh.material)) {
-          mesh.material = mesh.material.map((m) => tintMaterial(m, color));
+          mesh.material = mesh.material.map((m) => cloneMaterial(m, tint));
         } else {
-          mesh.material = tintMaterial(mesh.material, color);
+          mesh.material = cloneMaterial(mesh.material, tint);
         }
       }
     });
-    // 注意：不能对 SkinnedMesh 用 Box3.setFromObject 求脚底——它套用骨骼变换
-    // 会得到错误的 min.y，导致整体抬高浮空。这类模型设计上脚已在 y≈0，保持原点即可。
+    // 注意：Soldier 网格是绑定空间坐标(Y -22~21)，不能用 Box3.setFromObject 求脚底，
+    // 否则会算出错误高度导致浮空。模型加载后本身脚在 y≈0，保持原点即可。
     return c;
-  }, [scene, color]);
+  }, [scene, tint]);
   const currentRef = useRef('');
   const setAnim = useCallback((name: 'Idle' | 'Walking' | 'Running') => {
     if (currentRef.current === name) return;
@@ -65,22 +68,29 @@ function useHeroModel(color: string) {
   return { group, model, setAnim };
 }
 
-/** 玩家：跟随 engine.state.player，按 walking/running 切动画，朝向随移动方向 */
+/** 玩家：跟随 engine.state.player，按 walking/running 切动画，朝向严格跟随实际移动方向 */
 function PlayerCharacter({ engine }: { engine: GameEngine }) {
-  const female = engine.save.profile.gender === 'female';
-  const { group, model, setAnim } = useHeroModel(female ? '#ff86b0' : '#4da6ff');
+  // 保留Soldier模型自带纹理质感，不再强制染纯色
+  const { group, model, setAnim } = useHeroModel();
   useFrame(() => {
     const p = engine.state.player;
     const [x, z] = pxToWorld(p.x, p.y);
     if (group.current) {
       group.current.position.set(x, 0, z);
-      const want = p.walking ? (p.dir > 0 ? Math.PI / 2 : -Math.PI / 2) : 0;
-      group.current.rotation.y += (want - group.current.rotation.y) * 0.2;
+      if (p.walking) {
+        // 朝向跟随移动方向，做最短角度插值（处理 ±π 环绕），停止时保持最后朝向。
+        // +π 修正：Soldier 模型默认面朝 -Z，而 moveAngle 以 +Z(屏幕下)为 0，需翻转半圈才与实际移动方向一致。
+        const want = p.moveAngle + Math.PI;
+        let diff = want - group.current.rotation.y;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        group.current.rotation.y += diff * 0.25;
+      }
     }
     setAnim(p.running ? 'Running' : p.walking ? 'Walking' : 'Idle');
   });
   return (
-    <group ref={group} scale={1.3}>
+    <group ref={group} scale={1.2}>
       <primitive object={model} />
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
         <circleGeometry args={[0.5, 24]} />
@@ -92,6 +102,7 @@ function PlayerCharacter({ engine }: { engine: GameEngine }) {
 
 /** NPC：固定格子位置，始终待机动画，名字标签，点击触发交互 */
 function NpcCharacter({ npc, color, onInteract }: { npc: NpcDef; color: string; onInteract: (n: NpcDef) => void }) {
+  // 轻微色调与纹理相乘，既区分角色又保留装甲质感
   const { group, model } = useHeroModel(color);
   const [x, z] = pxToWorld(npc.x * TILE + TILE / 2, npc.y * TILE + TILE / 2 - 4);
   const [hover, setHover] = useState(false);

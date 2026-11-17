@@ -1,7 +1,7 @@
-Character model: hero.glb (Xbot)
-Source: three.js official example (mrdoob/three.js, examples/models/gltf/Xbot.glb)
+Character model: hero.glb (Vanguard Soldier)
+Source: three.js official example (mrdoob/three.js, examples/models/gltf/Soldier.glb)
 License: MIT / three.js examples. Free for commercial and personal use.
 URL: https://github.com/mrdoob/three.js/tree/master/examples/models/gltf
-Animations included: idle, walk, run, agree, headShake, sad_pose, sneak_pose
-Skin colors are customized at runtime to differentiate player/NPCs.
-Note: replaced the earlier RobotExpressive model to use a realistic humanoid character.
+Animations included: Idle, Walk, Run, TPose
+Features: textured armored character (2 embedded textures) — realistic detail.
+Runtime normalization scales the model to a fixed height and aligns feet to y=0.

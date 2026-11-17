@@ -54,24 +54,55 @@ function check(name, cond, extra) { R.push({ name, pass: !!cond, extra }); conso
       const st = g.findStart();
       g.state.player.x = st.x * 32 + 16; g.state.player.y = st.y * 32 + 12;
     };
-    // headless 下大模型帧率不稳，用「位移/帧数」归一化比较每帧速度，消除帧率波动。
-    // 目标设 100px（不撞墙），窗口 600ms。
-    reset(); let p0 = { x: g.state.player.x, y: g.state.player.y };
-    let f0 = g.getFrame();
-    g.setMoveTarget(p0.x + 100, p0.y, false);
-    await new Promise(r => setTimeout(r, 600));
-    const walkD = Math.abs(g.state.player.x - p0.x), walkF = g.getFrame() - f0;
-    // 小跑
-    reset(); p0 = { x: g.state.player.x, y: g.state.player.y };
-    f0 = g.getFrame();
-    g.setMoveTarget(p0.x + 100, p0.y, true);
-    await new Promise(r => setTimeout(r, 600));
-    const runD = Math.abs(g.state.player.x - p0.x), runF = g.getFrame() - f0;
+  // 停掉 rAF，手动推进固定 30 帧，彻底消除 headless 帧率波动
+  g.stop();
+  const step = (n) => { for (let i = 0; i < n; i++) g.update(16); };
+  const reset2 = () => {
     g.clearMoveTarget();
-    const walkSpeed = walkD / Math.max(1, walkF), runSpeed = runD / Math.max(1, runF);
-    return { walkD, runD, walkF, runF, walkSpeed, runSpeed };
+    const st = g.findStart();
+    g.state.player.x = st.x * 32 + 16; g.state.player.y = st.y * 32 + 12;
+  };
+  reset2(); let p0 = { x: g.state.player.x, y: g.state.player.y };
+  g.setMoveTarget(p0.x + 100, p0.y, false);
+  step(30);
+  const walkD = Math.abs(g.state.player.x - p0.x);
+  reset2(); p0 = { x: g.state.player.x, y: g.state.player.y };
+  g.setMoveTarget(p0.x + 100, p0.y, true);
+  step(30);
+  const runD = Math.abs(g.state.player.x - p0.x);
+  g.clearMoveTarget();
+  g.start(); // 恢复 rAF，供后续测试使用
+  return { walkD, runD };
   });
-  check('小跑速度 > 走路速度(每帧归一化)', speedRes.runSpeed > speedRes.walkSpeed * 1.2, speedRes);
+  check('小跑速度 > 走路速度(固定30帧)', speedRes.runD > speedRes.walkD * 1.2, speedRes);
+
+  // 3.5) 朝向跟随移动方向：四方向 moveAngle 校验（弧度）
+  // 像素坐标 x右为正/y下为正；atan2(dx,dy)：右=π/2 下=π 左=-π/2 上=0
+  const angles = await page.evaluate(() => {
+    const g = window.__game;
+    g.stop();
+    const step = (n) => { for (let i = 0; i < n; i++) g.update(16); };
+    const probe = (tx, ty) => {
+      g.clearMoveTarget();
+      const st = g.findStart();
+      g.state.player.x = st.x * 32 + 16; g.state.player.y = st.y * 32 + 12;
+      g.setMoveTarget(g.state.player.x + tx, g.state.player.y + ty, false);
+      step(8);
+      return g.state.player.moveAngle;
+    };
+    const right = probe(80, 0);   // dx>0 → atan2(+,0)=π/2
+    const down = probe(0, 80);    // dy>0 → atan2(0,+)=0  （3D 面朝 +Z=屏幕下方）
+    const left = probe(-80, 0);   // dx<0 → -π/2
+    const up = probe(0, -80);     // dy<0 → atan2(0,-)=π （面朝 -Z=屏幕上方）
+    g.clearMoveTarget();
+    g.start();
+    return { right, down, left, up };
+  });
+  const near = (a, b) => Math.abs(a - b) < 0.35;
+  check('朝向-右(≈π/2)', near(angles.right, Math.PI / 2), angles);
+  check('朝向-下(≈0,+Z)', near(angles.down, 0), angles);
+  check('朝向-左(≈-π/2)', near(angles.left, -Math.PI / 2), angles);
+  check('朝向-上(≈π,-Z)', near(angles.up, Math.PI), angles);
 
   // 4) Shift 键设置小跑状态
   const shiftRes = await page.evaluate(() => {

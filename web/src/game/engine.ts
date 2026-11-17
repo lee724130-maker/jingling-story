@@ -54,7 +54,7 @@ const SKILL_FX_DUR = 620;
 
 export interface EngineState {
   scene: Scene;
-  player: { x: number; y: number; dir: number; walking: boolean; running: boolean };
+  player: { x: number; y: number; dir: number; walking: boolean; running: boolean; moveAngle: number };
   message: string;
   battle: BattleView | null;
   summon: SummonView | null;
@@ -135,7 +135,7 @@ export class GameEngine {
     const st = this.findStart();
     this.state = {
       scene: 'world',
-      player: { x: st.x * TILE + TILE / 2, y: st.y * TILE + TILE / 2 - 4, dir: 1, walking: false, running: false },
+      player: { x: st.x * TILE + TILE / 2, y: st.y * TILE + TILE / 2 - 4, dir: 1, walking: false, running: false, moveAngle: 0 },
       message: '', battle: null, summon: null, wilds: []
     };
     this.initWilds();
@@ -302,6 +302,7 @@ export class GameEngine {
         && isWalkable(this.cellAt(Math.floor((px - r) / TILE), Math.floor((py + r) / TILE)))
         && isWalkable(this.cellAt(Math.floor((px + r) / TILE), Math.floor((py + r) / TILE)));
     };
+    const beforeX = p.x, beforeY = p.y;
     let moved = false;
     const nx = p.x + dx * speed, ny = p.y + dy * speed;
     if (canStand(nx, ny)) { p.x = nx; p.y = ny; moved = true; }
@@ -310,7 +311,12 @@ export class GameEngine {
       if (dx && canStand(p.x + dx * speed, p.y)) { p.x += dx * speed; moved = true; }
       if (dy && canStand(p.x, p.y + dy * speed)) { p.y += dy * speed; moved = true; }
     }
-    if (moved && dx) p.dir = dx > 0 ? 1 : -1;
+    if (moved) {
+      // 按实际位移方向记录朝向角（像素坐标系 x 右为正、y 下为正；atan2(dx,dy) 与 3D rotation.y 对应）
+      const ax = p.x - beforeX, ay = p.y - beforeY;
+      if (Math.abs(ax) > 1e-4 || Math.abs(ay) > 1e-4) p.moveAngle = Math.atan2(ax, ay);
+      if (dx) p.dir = dx > 0 ? 1 : -1;
+    }
     return moved;
   }
 

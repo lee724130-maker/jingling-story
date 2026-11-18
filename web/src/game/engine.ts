@@ -7,6 +7,7 @@ import { checksum, seededRandom, captureRate, grantExp } from '@shared/rules';
 import { MAPS, MAPS as MAP_DEF, type MapId, type NpcDef } from '@shared/maps';
 import { api } from '../api/client';
 import type { SkillFx } from './battleFx';
+import type { SfxName } from './audio';
 
 export type Scene = 'world' | 'summon' | 'battle';
 export type SummonPhase = 'appear' | 'throw' | 'burst' | 'ready';
@@ -105,6 +106,8 @@ export class GameEngine {
   // 场景切换/NPC 交互回调，交给 React 层处理 UI
   onSceneChange: (mapId: MapId, name: string) => void = () => {};
   onNpcInteract: (npc: NpcDef) => void = () => {};
+  /** 音效事件：引擎只发名字，实际播放交给 React 层（便于无音频环境下静默降级） */
+  onSfx: (name: SfxName) => void = () => {};
 
   /* ---------- 当前地图派生数据（全部基于 save.progress.map） ---------- */
   private get map() { return mapOf(this.save.progress.map); }
@@ -278,6 +281,7 @@ export class GameEngine {
     this.activeWild = null;
     this.cooldown = 1500; // 切图后短暂冷却，避免立刻触发遭遇
     this.initWilds();
+    this.onSfx('portal');
     this.onSceneChange(to, dest.name);
     this.onSaveDirty();
   }
@@ -324,6 +328,7 @@ export class GameEngine {
   private afterPlayerStep() {
     const p = this.state.player;
     this.save.profile.steps++;
+    this.onSfx(p.running ? 'run' : 'step');
     const col = Math.floor(p.x / TILE), row = Math.floor(p.y / TILE), ch = this.cellAt(col, row);
     if (ch === 'H' && !this.healUsed) {
       this.healUsed = true;
@@ -380,6 +385,7 @@ export class GameEngine {
   private beginEncounter(w: WildSpirit) {
     this.clearMoveTarget();
     this.state.player.walking = false;
+    this.onSfx('encounter');
     this.activeWild = w;
     w.alert = 2000;
     this.allyIndex = Math.max(0, this.save.team.findIndex(m => m.hp > 0));
@@ -400,9 +406,9 @@ export class GameEngine {
     s.t += dt;
     if (s.t >= SUMMON_DUR[s.phase]) {
       s.t = 0;
-      if (s.phase === 'appear') s.phase = 'throw';
-      else if (s.phase === 'throw') s.phase = 'burst';
-      else if (s.phase === 'burst') s.phase = 'ready';
+      if (s.phase === 'appear') { s.phase = 'throw'; this.onSfx('throw'); }
+      else if (s.phase === 'throw') { s.phase = 'burst'; this.onSfx('select'); }
+      else if (s.phase === 'burst') { s.phase = 'ready'; this.onSfx('select'); }
       else this.enterBattle();
     }
   }
@@ -477,6 +483,7 @@ export class GameEngine {
   private spawnSkillFx(skillId: string, caster: 'ally' | 'enemy') {
     const b = this.state.battle; if (!b) return;
     const sk = SKILLS[skillId];
+    this.onSfx(sk.kind === 'heal' ? 'heal' : 'skill');
     const from = caster === 'ally' ? BATTLE_POS.ally : BATTLE_POS.enemy;
     const to = caster === 'ally' ? BATTLE_POS.enemy : BATTLE_POS.ally;
     b.skillFx = {
@@ -516,6 +523,7 @@ export class GameEngine {
         const res = this.damage(b.ally, b.enemy, sid);
         b.enemy.hp -= res.dmg;
         b.enemyFx = 'hurt';
+        this.onSfx('hit');
         let msg = `造成 ${res.dmg} 点伤害`;
         if (res.mult >= 2) msg += '，效果拔群！'; else if (res.mult <= 0.5) msg += '，效果不佳…'; else msg += '。';
         this.setBattleMsg(msg);
@@ -544,6 +552,7 @@ export class GameEngine {
       const res = this.damage(b.enemy, b.ally, sid);
       b.ally.hp -= res.dmg;
       b.allyFx = 'hurt';
+      this.onSfx('hit');
       let msg = `受到 ${res.dmg} 点伤害`;
       if (res.mult >= 2) msg += '，效果拔群！'; else if (res.mult <= 0.5) msg += '，效果不佳…'; else msg += '。';
       this.setBattleMsg(msg);
@@ -556,6 +565,7 @@ export class GameEngine {
     const b = this.state.battle; if (!b || this.settled || b.ballFx) return;
     if (!this.save.bag.ball) { this.setBattleMsg('没有灵兽球了！'); return; }
     this.setBattleMsg('掷出了灵兽球……');
+    this.onSfx('throw');
     // 用同一种子本地预测捕获结果，仅用于球的摇晃/发光动画，保证流畅
     const rate = captureRate(b.enemy.hp, b.enemy.maxHp);
     const predicted = seededRandom(this.battleSeed + 707)() < rate;
@@ -583,10 +593,12 @@ export class GameEngine {
         this.applyAuthoritative(authoritative);
         this.settled = true;
         if (authoritative.caught) {
+          this.onSfx('catch');
           this.setBattleMsg(`啪！捕获成功！${MONSTERS[enemySpecies].name} 加入了队伍。`);
           authoritative.events.filter(e => e.type !== 'info').forEach(e => this.onDialog([e.text]));
           setTimeout(() => this.endBattle(), 1100);
         } else {
+          this.onSfx('miss');
           this.setBattleMsg('可惜！它挣脱了灵兽球！');
           // 权威存档已扣球/写入，继续战斗需保持引用为权威存档里的精灵
           b.ally = this.save.team[this.allyIndex] || ally;
@@ -597,6 +609,7 @@ export class GameEngine {
         this.settled = true;
         this.save.bag.ball = Math.max(0, this.save.bag.ball - 1);
         if (predicted) {
+          this.onSfx('catch');
           this.setBattleMsg(`啪！捕获成功！${MONSTERS[enemySpecies].name} 加入了队伍。`);
           if (!this.save.pokedex.caught.includes(enemySpecies)) this.save.pokedex.caught.push(enemySpecies);
           const c = newMonster(enemySpecies, b.enemy.level, { gender: b.enemy.gender, nature: b.enemy.nature });
@@ -605,6 +618,7 @@ export class GameEngine {
           this.onSaveDirty();
           setTimeout(() => this.endBattle(), 1100);
         } else {
+          this.onSfx('miss');
           this.setBattleMsg('可惜！它挣脱了灵兽球！');
           setTimeout(() => this.enemyTurn(), 700);
         }
@@ -657,6 +671,7 @@ export class GameEngine {
   private runAway() {
     const b = this.state.battle; if (!b) return;
     if (Math.random() < 0.7) {
+      this.onSfx('select');
       this.setBattleMsg('成功逃跑了！');
       const settle = this.settleBattleResult('run', b.enemy.species, b.enemy.level);
       setTimeout(async () => {
@@ -665,7 +680,7 @@ export class GameEngine {
         else { this.save.bag.herb = Math.max(0, this.save.bag.herb - this.herbsUsed); this.onSaveDirty(); }
         this.endBattle();
       }, 700);
-    } else { this.setBattleMsg('没能逃走！'); setTimeout(() => this.enemyTurn(), 600); }
+    } else { this.onSfx('fail'); this.setBattleMsg('没能逃走！'); setTimeout(() => this.enemyTurn(), 600); }
   }
 
   private win() {
@@ -673,6 +688,7 @@ export class GameEngine {
     const enemySpecies = b.enemy.species, enemyLevel = b.enemy.level, ally = b.ally;
     // 金币数按种子预估展示（与服务端同公式），最终以服务端返回为准
     const coinsPreview = 10 + Math.floor(seededRandom(this.battleSeed + 101)() * 16) + enemyLevel * 2;
+    this.onSfx('win');
     this.setBattleMsg(`获胜！获得 ${coinsPreview} 灵石。`);
     const settle = this.settleBattleResult('win', enemySpecies, enemyLevel);
     setTimeout(async () => {
@@ -703,12 +719,14 @@ export class GameEngine {
       const old = m.maxHp; m.maxHp = maxHpFor(m.species, m.level); m.hp += (m.maxHp - old);
       const evo = MONSTERS[m.species].evolve;
       if (evo && m.level >= evo.lv) {
+        this.onSfx('evolve');
         const before = MONSTERS[m.species].name;
         m.species = evo.to; m.skills = [...MONSTERS[m.species].skills];
         const old2 = m.maxHp; m.maxHp = maxHpFor(m.species, m.level); m.hp += (m.maxHp - old2);
         if (!this.save.pokedex.seen.includes(m.species)) this.save.pokedex.seen.push(m.species);
         this.onDialog([`✨ ${before} 进化成了 ${MONSTERS[m.species].name}！`]);
       } else {
+        this.onSfx('levelup');
         this.onDialog([`${MONSTERS[m.species].name} 升到了 Lv.${m.level}！`]);
       }
     }

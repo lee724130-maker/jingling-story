@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "private": true,
   "scripts": {
-    "start:dev": "nest start --watch",
+    "start:dev": "nest start --watch --entryFile server/src/main",
     "build": "nest build",
     "start": "node dist/server/src/main"
   },

@@ -7,6 +7,7 @@ import { MAP, MONSTERS, TYPES, TILE, ART } from './game/config';
 import { drawBattleSpirit, drawBall, drawBeam } from './game/sprites';
 import { drawSkillFx } from './game/battleFx';
 import { preloadSpirits } from './game/spiritCanvas';
+import { audio, type BgmScene } from './game/audio';
 import { claimableCount, allQuestViews } from '@shared/quests';
 import { MAPS, type MapId, type NpcDef } from '@shared/maps';
 import Scene3D from './game/world3d/Scene3D';
@@ -93,10 +94,12 @@ export default function App() {
     };
     eng.onSaveDirty = () => markDirty();
     eng.onDialog = (lines) => setDialog(lines);
-    // 场景切换：更新地图名 + 提示
+    eng.onSfx = (name) => audio.play(name);
+    // 场景切换：更新地图名 + 提示 + BGM
     eng.onSceneChange = (to, name) => {
       setMapName(name);
       showToast(`已抵达：${name}`);
+      audio.setBgm(to === 'grassland' ? 'grassland' : 'village');
     };
     // NPC 交互：按角色分派对话/商店/任务板/选宠
     eng.onNpcInteract = (npc) => {
@@ -120,11 +123,32 @@ export default function App() {
     };
     eng.start();
     preloadSpirits();  // 后台预加载 AI 精灵贴图，战斗中自动启用
-    // 开发调试钩子：便于自动化测试读取引擎状态（不影响正常玩法）
+    // 开发调试钩子：便于自动化测试读取引擎状态与音频状态（不影响正常玩法）
     (window as any).__game = eng;
+    (window as any).__audio = audio;
     setStage('game');
     setVersion(ver);
+    // 初始 BGM 按当前地图选曲（unlock 前只记录，首次交互后自动播放）
+    audio.setBgm(save.progress.map === 'grassland' ? 'grassland' : 'village');
   }, [markDirty]);
+
+  // 浏览器自动播放策略：首次用户手势时解锁 AudioContext（全局一次性）
+  useEffect(() => {
+    const unlock = () => { audio.unlock(); window.removeEventListener('pointerdown', unlock); window.removeEventListener('keydown', unlock); };
+    window.addEventListener('pointerdown', unlock);
+    window.addEventListener('keydown', unlock);
+    return () => { window.removeEventListener('pointerdown', unlock); window.removeEventListener('keydown', unlock); };
+  }, []);
+
+  // BGM 随场景切换：战斗用紧张曲，世界按当前地图选曲
+  useEffect(() => {
+    if (stage !== 'game' || !engineRef.current) return;
+    const scene = engineState?.scene;
+    let bgm: BgmScene = 'none';
+    if (scene === 'battle' || scene === 'summon') bgm = 'battle';
+    else if (scene === 'world') bgm = engineRef.current.save.progress.map === 'grassland' ? 'grassland' : 'village';
+    audio.setBgm(bgm);
+  }, [stage, engineState?.scene]);
 
   useEffect(() => {
     if (api.isLoggedIn()) {

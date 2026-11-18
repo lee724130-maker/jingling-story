@@ -5,12 +5,14 @@ import { store } from '../common/store';
 import {
   ERR, SaveData, Monster, BattleSettleDto, CaptureSettleDto, SettleResult,
   QuestClaimDto, QuestClaimResult, ChooseStarterDto, ChooseStarterResult,
-  ShopBuyDto, ShopBuyResult
+  ShopBuyDto, ShopBuyResult, ExploreDto, ExploreResult
 } from '../../../shared/types';
 import { seededRandom, captureRate, grantExp, makeMonster, checksum } from '../../../shared/rules';
 import { MONSTERS } from '../../../shared/gamedata';
 import { QUESTS, questFlag } from '../../../shared/quests';
 import { STARTER_CHOICES, SHOP_ITEMS } from '../../../shared/maps';
+import { DUNGEONS, isDungeonId, isDungeonUnlocked, pickWeighted, type DungeonId } from '../../../shared/dungeons';
+import { ITEMS } from '../../../shared/gamedata';
 
 type ExpEventLike = { type: string; text: string };
 
@@ -24,6 +26,13 @@ export interface SettleOutcome {
 export class GameService {
   // 幂等键：已结算的 battleId -> 结算结果快照（防止重复提交刷奖励）
   private settled = new Map<string, SettleResult>();
+  // 探索幂等键：已判定的 exploreId -> 结果（防止重复点击刷物品）
+  private explored = new Map<string, ExploreResult>();
+
+  /** 探索校验和：字段顺序固定 */
+  private explorePayload(d: ExploreDto) {
+    return [d.exploreId, d.dungeonId, d.seed].join('|');
+  }
 
   /** 构造校验和字符串：字段顺序固定，前后端必须一致 */
   private battlePayload(d: BattleSettleDto) {
@@ -240,5 +249,81 @@ export class GameService {
       code: ERR.OK, message: 'ok',
       data: { item: dto.item, count: dto.count, cost, version: written.version, data: written.data }
     };
+  }
+
+  /** 副本探索：按服务端种子权威判定结果（精灵/物品/空）。
+   *  - 精灵：只返回遭遇信息供前端进战斗，不改队伍（捕获走既有战斗结算）；权威补 seen 图鉴。
+   *  - 物品：服务端直接发放到权威存档（金币/灵兽球/活力草）。
+   *  - 空：不改存档。
+   *  客户端仅上报 dungeonId/种子/校验和，无法伪造概率或奖励；exploreId 幂等防重复刷。 */
+  async explore(uid: number, dto: ExploreDto): Promise<{ code: number; message: string; data: ExploreResult | null }> {
+    if (!uid || !dto?.exploreId || !dto.dungeonId || !Number.isFinite(dto.seed)) {
+      return { code: ERR.BAD_PARAMS, message: '参数不完整', data: null };
+    }
+    if (checksum(this.explorePayload(dto)) !== dto.clientChecksum) {
+      return { code: ERR.CHECKSUM_FAILED, message: '校验和不符，疑似篡改', data: null };
+    }
+    if (this.explored.has(dto.exploreId)) {
+      return { code: ERR.DUPLICATE_SETTLE, message: '该次探索已结算', data: this.explored.get(dto.exploreId)! };
+    }
+    if (!isDungeonId(dto.dungeonId)) return { code: ERR.BAD_PARAMS, message: '副本不存在', data: null };
+    const def = DUNGEONS[dto.dungeonId as DungeonId];
+
+    const row = await store.getSave(uid);
+    if (!row) return { code: ERR.BAD_PARAMS, message: '存档不存在', data: null };
+    const save: SaveData = JSON.parse(JSON.stringify(row.data));
+    if (!isDungeonUnlocked(def, save.progress.flags)) {
+      return { code: ERR.BAD_PARAMS, message: '副本尚未解锁', data: null };
+    }
+
+    const rng = seededRandom(dto.seed + 2026);
+    const roll = rng();
+    let version = row.version;
+
+    if (roll < def.rates.monster) {
+      // 遇敌：按副本权重池抽物种与等级，只补 seen 图鉴，不写队伍
+      const pick = pickWeighted(def.encounters, rng);
+      const level = def.level[0] + Math.floor(rng() * (def.level[1] - def.level[0] + 1));
+      if (!save.pokedex.seen.includes(pick.species)) save.pokedex.seen.push(pick.species);
+      const written = await store.putSave(uid, version + 1, save);
+      version = written.version;
+      const result: ExploreResult = {
+        exploreId: dto.exploreId, dungeonId: def.id, kind: 'monster',
+        encounter: { species: pick.species, level, name: MONSTERS[pick.species].name },
+        text: `野生的 ${MONSTERS[pick.species].name} 出现了！`,
+        version, data: written.data
+      };
+      this.explored.set(dto.exploreId, result);
+      return { code: ERR.OK, message: 'ok', data: result };
+    }
+
+    if (roll < def.rates.monster + def.rates.item) {
+      // 物品：按权重抽奖励并权威发放
+      const reward = pickWeighted(def.items, rng);
+      const amount = reward.min + Math.floor(rng() * (reward.max - reward.min + 1));
+      let name = '';
+      if (reward.item === 'coins') { save.resources.coins += amount; name = '灵石'; }
+      else if (reward.item === 'ball') { save.bag.ball = (save.bag.ball || 0) + amount; name = ITEMS.ball.name; }
+      else if (reward.item === 'herb') { save.bag.herb = (save.bag.herb || 0) + amount; name = ITEMS.herb.name; }
+      const written = await store.putSave(uid, version + 1, save);
+      version = written.version;
+      const result: ExploreResult = {
+        exploreId: dto.exploreId, dungeonId: def.id, kind: 'item',
+        reward: { item: reward.item, amount, name },
+        text: `探索发现了 ${name} ×${amount}！`,
+        version, data: written.data
+      };
+      this.explored.set(dto.exploreId, result);
+      return { code: ERR.OK, message: 'ok', data: result };
+    }
+
+    // 空手而归：不改存档
+    const result: ExploreResult = {
+      exploreId: dto.exploreId, dungeonId: def.id, kind: 'nothing',
+      text: '四处搜寻，但没有发现任何东西……',
+      version, data: row.data
+    };
+    this.explored.set(dto.exploreId, result);
+    return { code: ERR.OK, message: 'ok', data: result };
   }
 }

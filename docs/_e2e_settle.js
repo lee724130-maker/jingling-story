@@ -19,8 +19,17 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   await sleep(300);
   const enters = await page.$$('.bigbtn.primary');
   if (enters.length) await enters[enters.length - 1].click();
-  await sleep(600);
-  for (let i = 0; i < 4; i++) { await page.keyboard.press('Enter'); await sleep(100); }
+  await sleep(1200);
+  // 新流程：推进引导对话 → 选初始伙伴 → 清残留对话
+  for (let i = 0; i < 10; i++) { if (await page.$('.starter-box')) break; await page.keyboard.press('Enter'); await sleep(130); }
+  if (await page.$('.starter-box')) {
+    await page.evaluate(() => { const c = document.querySelector('.starter-card'); if (c) c.click(); });
+    await sleep(180);
+    await page.evaluate(() => { const c = document.querySelector('.starter-confirm'); if (c) c.click(); });
+  }
+  await sleep(700);
+  for (let i = 0; i < 12; i++) { if (!(await page.$('.dialog-box'))) break; await page.keyboard.press('Enter'); await sleep(110); }
+  await sleep(300);
 
   // 把出战精灵提到高等级，确保能打赢野怪，验证胜利结算
   await page.evaluate(() => {
@@ -32,25 +41,10 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   const snap0 = await page.evaluate(() => ({ v: window.__game.version, coins: window.__game.save.resources.coins }));
   console.log('初始', JSON.stringify(snap0));
 
-  // 追野怪
-  const moveToward = async (tx, ty) => {
-    const p = await page.evaluate(() => ({ x: window.__game.state.player.x, y: window.__game.state.player.y }));
-    let key = null;
-    if (Math.abs(tx - p.x) >= Math.abs(ty - p.y)) key = tx > p.x ? 'ArrowRight' : 'ArrowLeft';
-    else key = ty > p.y ? 'ArrowDown' : 'ArrowUp';
-    if (key) { await page.keyboard.down(key); await sleep(110); await page.keyboard.up(key); }
-  };
-
-  let inBattle = false;
-  for (let step = 0; step < 260; step++) {
-    const s = await page.evaluate(() => ({ scene: window.__game.state.scene, p: { x: window.__game.state.player.x, y: window.__game.state.player.y }, wilds: window.__game.state.wilds.map(w => ({ x: w.x, y: w.y })) }));
-    if (s.scene === 'summon') { await sleep(120); continue; }
-    if (s.scene === 'battle') { inBattle = true; break; }
-    let best = null, bd = 1e9;
-    for (const w of s.wilds) { const d = Math.hypot(w.x - s.p.x, w.y - s.p.y); if (d < bd) { bd = d; best = w; } }
-    if (best) await moveToward(best.x, best.y);
-    await sleep(30);
-  }
+  // 新玩法：无可见野怪，用调试钩子直接开战（战斗结算逻辑不变）
+  await page.evaluate(() => { window.__game.startBattle(1, 5); });
+  await sleep(600);
+  const inBattle = await page.evaluate(() => window.__game.state.scene === 'battle');
   console.log('进入战斗:', inBattle);
   if (!inBattle) { console.log('RESULT FAIL 未进入战斗', errors); await browser.close(); process.exit(1); }
 
@@ -59,12 +53,10 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   for (let turn = 0; turn < 30; turn++) {
     const scene = await page.evaluate(() => window.__game.state.scene);
     if (scene !== 'battle') { ended = true; break; }
-    // 点"技能" -> 第一个技能
-    const btns = await page.$$('.actbtn');
-    if (btns.length) await btns[0].click();
-    await sleep(150);
-    const skills = await page.$$('.actbtn');
-    if (skills.length) await skills[0].click();
+    // 点"技能" -> 第一个技能（DOM click 规避战斗消息刷新导致的元素脱离）
+    await page.evaluate(() => { const b = document.querySelector('.actbtn'); if (b) b.click(); });
+    await sleep(180);
+    await page.evaluate(() => { const b = document.querySelector('.actbtn'); if (b) b.click(); });
     await sleep(1400);
   }
   console.log('战斗结束回到世界:', ended);

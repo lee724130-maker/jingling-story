@@ -25,9 +25,17 @@ function check(name, cond, extra) { R.push({ name, pass: !!cond, extra }); conso
   await sleep(300);
   const enters = await page.$$('.bigbtn.primary');
   if (enters.length) await enters[enters.length - 1].click();
-  await sleep(1600);
-  for (let i = 0; i < 5; i++) { await page.keyboard.press('Enter'); await sleep(80); }
-  await sleep(500);
+  await sleep(1200);
+  // 新流程：推进引导对话 → 选初始伙伴 → 清残留对话
+  for (let i = 0; i < 10; i++) { if (await page.$('.starter-box')) break; await page.keyboard.press('Enter'); await sleep(130); }
+  if (await page.$('.starter-box')) {
+    await page.evaluate(() => { const c = document.querySelector('.starter-card'); if (c) c.click(); });
+    await sleep(180);
+    await page.evaluate(() => { const c = document.querySelector('.starter-confirm'); if (c) c.click(); });
+  }
+  await sleep(700);
+  for (let i = 0; i < 12; i++) { if (!(await page.$('.dialog-box'))) break; await page.keyboard.press('Enter'); await sleep(110); }
+  await sleep(400);
 
   // 1) audio 调试钩子挂载
   const hasAudio = await page.evaluate(() => !!window.__audio);

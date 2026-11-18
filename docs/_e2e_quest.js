@@ -22,8 +22,16 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   await sleep(300);
   const enters = await page.$$('.bigbtn.primary');
   if (enters.length) await enters[enters.length - 1].click();
-  await sleep(1500);
-  for (let i = 0; i < 4; i++) { await page.keyboard.press('Enter'); await sleep(80); }
+  await sleep(1200);
+  // 新流程：推进引导对话 → 选初始伙伴 → 清残留对话
+  for (let i = 0; i < 10; i++) { if (await page.$('.starter-box')) break; await page.keyboard.press('Enter'); await sleep(130); }
+  if (await page.$('.starter-box')) {
+    await page.evaluate(() => { const c = document.querySelector('.starter-card'); if (c) c.click(); });
+    await sleep(180);
+    await page.evaluate(() => { const c = document.querySelector('.starter-confirm'); if (c) c.click(); });
+  }
+  await sleep(700);
+  for (let i = 0; i < 12; i++) { if (!(await page.$('.dialog-box'))) break; await page.keyboard.press('Enter'); await sleep(110); }
   await sleep(300);
 
   // 读取初始存档状态

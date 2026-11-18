@@ -4,7 +4,13 @@
 
 **GitHub 仓库**：https://github.com/lee724130-maker/jingling-story （私有）
 
-当前阶段：**第三人称 3D 第一版 + CC0 3D 素材场景 + 双区域新手村/野外副本**（阶段 1/2/4 部分完成），React + TypeScript 前端 / NestJS 后端联调 Demo。
+当前阶段：**手游式主面板 + 副本探索版（v2）+ 服务端权威探索判定 + 回合制战斗/AI 精灵演出**（阶段 1/2/4 部分完成），React + TypeScript 前端 / NestJS 后端联调 Demo。
+
+> **v2 玩法改版（2026-11-18）**：应老板要求，已**完全移除第三人称 3D 世界**（WASD 走动 / 可见野怪 / 点地面寻路），改为手游式主面板玩法：
+> `登录 → 主面板（火影忍者手游式导航）→ 探索 → 选副本（微风草原 / 潺潺溪谷 / 回声岩洞）→ 静态场景点右下角「探索」→ 概率遇到精灵/物品 → 遇精灵进战斗`。
+> - 探索判定由**服务端按种子权威结算**（`POST /api/game/explore`，校验和 + exploreId 幂等 + 副本解锁校验），免费无限探索、纯概率；物品直接发到权威存档，遇敌只返回种类/等级，战斗沿用原有回合制 + AI 精灵演出。
+> - 战斗结束自动回到当前副本继续探索。三选一初始伙伴改为新用户首登对话引导（首登会先落库初始存档，保证权威接口可用）。
+> - 旧 3D 世界代码（`web/src/game/world3d/`）保留但不再接入主流程；旧的 `_e2e_3d/village/interact` 脚本针对已移除玩法，不再作为回归项。新增 `docs/_e2e_explore.js`（15/15 PASS）。
 
 ## 技术栈
 
@@ -14,7 +20,7 @@
 | 3D 渲染 | Three.js + React Three Fiber + Drei（第三人称场景 / 2.5D 广告牌）|
 | 后端 | NestJS 10 + TypeScript |
 | 数据库 | MySQL 独立库 `jingling_story`（`STORAGE_MODE=mysql`，可切 `local`）|
-| 共享 | `shared/types.ts` 类型 · `shared/gamedata.ts` 配置 · `shared/rules.ts` 战斗规则 · `shared/quests.ts` 任务 · `shared/maps.ts` 多地图/NPC/商店 |
+| 共享 | `shared/types.ts` 类型 · `shared/gamedata.ts` 配置 · `shared/rules.ts` 战斗规则 · `shared/quests.ts` 任务 · `shared/maps.ts` 多地图/NPC/商店 · `shared/dungeons.ts` 副本地图与探索判定 |
 | 美术 | AI 立绘（精灵群像裁切头像、草原地面、天空远景）+ Kenney CC0 3D 场景模型（树木/花草/岩石/商店摊/喷泉/路灯/围栏）+ three.js 官方 MIT 带纹理装甲人物（hero.glb=Soldier，玩家/NPC，Idle/Walk/Run）+ Canvas 2D 战斗特效 |
 | 音效 | Web Audio API 程序化合成（BGM 三曲 + 17 种 SFX，零音频素材 / 零积分），localStorage 记忆静音与音量 |
 | 认证 | 本地测试账号 + JWT（微信 UnionID 登录后补）|
@@ -135,7 +141,8 @@ Vite 已配 `/api` 代理到后端 **3001**（端口 3000 被 AI Anime 主项目
 - `docs/_e2e_3d.js`：第三人称 3D E2E（WebGL 渲染 / WASD 移动 / 野怪存在 / 可进入 summon+battle / 零错误）
 - `docs/_e2e_battle.js`：战斗演出 E2E（AI 精灵贴图渲染 / 技能特效触发与进度 / 横幅 / 结束后清除 / 零错误）
 - `docs/_e2e_quest.js`：任务系统 E2E（面板渲染 / 权威领奖金币+30 / 防重复 3003 / 未完成 3001 / 刷新持久化 / 零错误）
-- `docs/_e2e_village.js`：新手村系统 E2E（19 项全过：空队伍开局 / 无野怪 / 三选一 / 防重复选宠 / 商店扣款 / 金币不足 / 场景往返切换 / 野怪随区域增减 / 刷新持久化 / 零错误）
+- `docs/_e2e_explore.js`：**v2 玩法 E2E（15/15 PASS：新用户引导/三选一/主面板 6 导航/副本选择/3 副本卡片/解锁判断/静态场景/探索按钮/12 次探索权威判定/三态覆盖/校验和篡改拒绝/幂等/锁定副本拒绝/UI 探索/零错误）**
+- `docs/_e2e_village.js`：新手村系统 E2E（旧第三人称玩法，19 项全过，v2 后不再作为回归项）
 - `docs/_e2e_interact.js`：点击交互 E2E（11 项全过：hero.glb 3D 人物加载 / 点击寻路位移 / 小跑快于走路(固定30帧) / 四方向朝向角度 / Shift 切换 / 点 NPC 交互 / 真实鼠标点地面寻路 / 零错误）
 - `docs/_e2e_audio.js`：音频系统 E2E（10 项全过：audio 钩子挂载 / 用户手势解锁 AudioContext / 初始村庄 BGM / 调度器排音符 / 静音开关+持久化 / 取消静音 / 音量档位 / 17 种音效无异常 / 战斗切换 BGM / 零错误）
 - `docs/_e2e_portrait.js`：AI 写实立绘 E2E（7 项全过：标题男主立绘 / 切换女主图 / 对话头像 / 选宠界面立绘 / 训练师名片立绘+6项战绩 / 立绘资源 200 / 零错误）

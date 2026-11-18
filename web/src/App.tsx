@@ -1,16 +1,16 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { api } from './api/client';
-import type { SaveData, Gender } from '@shared/types';
+import type { SaveData, Gender, ExploreDto } from '@shared/types';
 import { GameEngine, type EngineState } from './game/engine';
 import { createNewSave, migrateSave } from './game/model';
-import { MAP, MONSTERS, TYPES, TILE, ART } from './game/config';
+import { MONSTERS, TYPES } from './game/config';
+import { checksum } from '@shared/rules';
 import { drawBattleSpirit, drawBall, drawBeam } from './game/sprites';
 import { drawSkillFx } from './game/battleFx';
 import { preloadSpirits } from './game/spiritCanvas';
 import { audio, type BgmScene } from './game/audio';
 import { claimableCount, allQuestViews } from '@shared/quests';
-import { MAPS, type MapId, type NpcDef } from '@shared/maps';
-import Scene3D from './game/world3d/Scene3D';
+import type { DungeonId } from '@shared/dungeons';
 import TitleScreen from './components/TitleScreen';
 import Hud from './components/Hud';
 import BattleUI from './components/BattleUI';
@@ -20,10 +20,19 @@ import StarterPanel from './components/StarterPanel';
 import ShopPanel from './components/ShopPanel';
 import Dialog from './components/Dialog';
 import Toast from './components/Toast';
-import SummonUI from './components/SummonUI';
+import HomePanel from './components/HomePanel';
+import DungeonSelect from './components/DungeonSelect';
+import DungeonScene from './components/DungeonScene';
 import { portraitOf } from './components/TrainerPortrait';
 
-type Stage = 'loading' | 'title' | 'game';
+/**
+ * 手游式主流程（v2）：
+ *   title → home（主面板）→ dungeons（副本选择）→ dungeon（静态场景 + 探索按钮）
+ *   探索命中精灵 → engine.startBattle() → 战斗画面（engine.scene='battle'）
+ *   战斗结束（scene 回 'world'）→ 自动回到当前副本继续探索。
+ * 已移除第三人称 3D 世界（WASD / 可见野怪 / 点地面寻路）。
+ */
+type Stage = 'loading' | 'title' | 'home' | 'dungeons' | 'dungeon';
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -31,6 +40,12 @@ export default function App() {
   const saveRef = useRef<SaveData | null>(null);
   const versionRef = useRef(0);
   const saveTimer = useRef<number | null>(null);
+  // 记录上帧 scene，用于检测战斗结束回到副本
+  const prevScene = useRef<string>('');
+  // 等待进入战斗的遭遇（探索命中精灵后暂存，DungeonScene 延时回调 onBattle 使用）
+  const pendingBattle = useRef<{ species: number; level: number } | null>(null);
+  // 当前副本
+  const currentDungeon = useRef<DungeonId>('meadow');
 
   const [stage, setStage] = useState<Stage>('loading');
   const [engineState, setEngineState] = useState<EngineState | null>(null);
@@ -38,16 +53,14 @@ export default function App() {
   const [dialog, setDialog] = useState<string[]>([]);
   const [toast, setToast] = useState('');
   const [version, setVersion] = useState(0);
-  const [summonCaption, setSummonCaption] = useState('');
   const [questOpen, setQuestOpen] = useState(false);
   const [claiming, setClaiming] = useState<string | null>(null);
   const [starterOpen, setStarterOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
   const [choosing, setChoosing] = useState(false);
   const [buying, setBuying] = useState(false);
-  const [nearNpc, setNearNpc] = useState<NpcDef | null>(null);
-  const [mapName, setMapName] = useState('青芽村 · 新手村');
   const [dialogDone, setDialogDone] = useState<(() => void) | null>(null);
+  const [sceneTick, setSceneTick] = useState(0); // 战斗结束回副本后强制刷新 DungeonScene
   const questNotified = useRef<Set<string>>(new Set());
 
   const showToast = useCallback((m: string) => {
@@ -80,41 +93,27 @@ export default function App() {
     saveRef.current = save; versionRef.current = ver;
     const eng = new GameEngine(save, ver);
     engineRef.current = eng;
-    setMapName(MAPS[save.progress.map as MapId]?.name || '青芽村 · 新手村');
     eng.onUpdate = (s) => {
       setEngineState({ ...s });
-      if (s.scene === 'summon') setSummonCaption(eng.summonCaption());
-      setNearNpc(s.scene === 'world' ? eng.npcNearby() : null);
+      // 检测战斗结束：scene 从 battle → world，回到当前副本
+      if (prevScene.current === 'battle' && s.scene === 'world') {
+        showToast('战斗结束，返回副本继续探索');
+        setSceneTick(t => t + 1);
+        audio.setBgm('village');
+      }
+      prevScene.current = s.scene;
       // 新手引导：任务刚完成时提示领取（每帧检测，用 ref 去重，避免重复弹）
       for (const v of allQuestViews(eng.save)) {
         if (v.complete && !v.claimed && !questNotified.current.has(v.id)) {
           questNotified.current.add(v.id);
-          showToast(`任务完成：${v.title}！点右上角「任务」领奖`);
+          showToast(`任务完成：${v.title}！点导航「任务」领奖`);
         }
       }
     };
     eng.onSaveDirty = () => markDirty();
     eng.onDialog = (lines) => setDialog(lines);
     eng.onSfx = (name) => audio.play(name);
-    // 场景切换：更新地图名 + 提示 + BGM
-    eng.onSceneChange = (to, name) => {
-      setMapName(name);
-      showToast(`已抵达：${name}`);
-      audio.setBgm(to === 'grassland' ? 'grassland' : 'village');
-    };
-    // NPC 交互：按角色分派对话/商店/任务板/选宠
-    eng.onNpcInteract = (npc) => {
-      if (npc.role === 'shop') { setShopOpen(true); return; }
-      if (npc.role === 'questboard') { setQuestOpen(true); return; }
-      const needStarter = eng.save.progress.flags.includes('story:need_starter');
-      if (npc.role === 'elder' && needStarter) {
-        setDialog([...npc.lines, '来吧，从这三只里挑一只作为你的伙伴。']);
-        setDialogDone(() => () => setStarterOpen(true));
-      } else {
-        setDialog(npc.lines);
-        setDialogDone(null);
-      }
-    };
+    eng.onSceneChange = () => {}; // 新玩法不再切换 3D 世界地图
     // 服务端权威结算后：取消待提交的旧存档防抖，同步新的版本号与存档引用
     eng.onAuthoritativeSave = (save, ver) => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -127,11 +126,10 @@ export default function App() {
     // 开发调试钩子：便于自动化测试读取引擎状态与音频状态（不影响正常玩法）
     (window as any).__game = eng;
     (window as any).__audio = audio;
-    setStage('game');
+    setStage('home');
     setVersion(ver);
-    // 初始 BGM 按当前地图选曲（unlock 前只记录，首次交互后自动播放）
-    audio.setBgm(save.progress.map === 'grassland' ? 'grassland' : 'village');
-  }, [markDirty]);
+    audio.setBgm('village');
+  }, [markDirty, showToast]);
 
   // 浏览器自动播放策略：首次用户手势时解锁 AudioContext（全局一次性）
   useEffect(() => {
@@ -141,13 +139,11 @@ export default function App() {
     return () => { window.removeEventListener('pointerdown', unlock); window.removeEventListener('keydown', unlock); };
   }, []);
 
-  // BGM 随场景切换：战斗用紧张曲，世界按当前地图选曲
+  // BGM 随场景切换：战斗用紧张曲，其余主界面用村庄曲
   useEffect(() => {
-    if (stage !== 'game' || !engineRef.current) return;
+    if (stage === 'loading' || stage === 'title') return;
     const scene = engineState?.scene;
-    let bgm: BgmScene = 'none';
-    if (scene === 'battle' || scene === 'summon') bgm = 'battle';
-    else if (scene === 'world') bgm = engineRef.current.save.progress.map === 'grassland' ? 'grassland' : 'village';
+    const bgm: BgmScene = scene === 'battle' || scene === 'summon' ? 'battle' : 'village';
     audio.setBgm(bgm);
   }, [stage, engineState?.scene]);
 
@@ -161,52 +157,16 @@ export default function App() {
     return () => { engineRef.current?.stop(); };
   }, [launch]);
 
-  // Canvas 渲染
+  // Canvas 战斗渲染：仅战斗场景绘制精灵/技能/球（静态副本场景无 2D 绘制）
+  // 依赖 stage：登录后才创建引擎，stage 从 loading→home 时重新挂载渲染循环
   useEffect(() => {
     const cv = canvasRef.current, eng = engineRef.current;
-    if (!cv || !eng || stage !== 'game') return;
+    if (!cv || !eng) return;
     const ctx = cv.getContext('2d'); if (!ctx) return;
+    let raf = 0;
     const render = () => {
       const st = eng.state;
-      // 透明叠加层：world 场景由 3D 负责，这里只画战斗/投球的 2D 特效
       ctx.clearRect(0, 0, cv.width, cv.height);
-
-      const p = st.player;
-
-      // 投球出战过场
-      if (st.scene === 'summon' && st.summon) {
-        const s = st.summon;
-        const now = performance.now();
-        if (s.phase === 'appear') {
-          // 野怪警戒已在上面绘制；这里画一个聚焦光圈
-          const pulse = 1 + Math.sin(s.t * 0.012) * 0.08;
-          ctx.save(); ctx.strokeStyle = 'rgba(255,211,74,.75)'; ctx.lineWidth = 2;
-          ctx.beginPath(); ctx.ellipse(s.enemy.x, s.enemy.y + 6, 20 * pulse, 9 * pulse, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
-        } else if (s.phase === 'throw') {
-          // 球从训练师手中沿抛物线飞向场地中心
-          const k = Math.min(1, s.t / 620);
-          const sx = p.x + p.dir * 10, sy = p.y - 6;
-          const tx = 320, ty = 250;
-          const bx = sx + (tx - sx) * k;
-          const by = sy + (ty - sy) * k - Math.sin(k * Math.PI) * 70;
-          drawBall(ctx, bx, by, 7, { rot: k * Math.PI * 4 });
-        } else if (s.phase === 'burst') {
-          // 球落地开启 + 光柱 + 己方精灵跃出
-          const k = Math.min(1, s.t / 700);
-          drawBeam(ctx, 320, 292, k, '#7fe3ff');
-          if (k < 0.35) drawBall(ctx, 320, 288, 8, { open: k > 0.18, rot: 0 });
-          else {
-            const jump = Math.sin(Math.min(1, (k - 0.35) / 0.65) * Math.PI) * 26;
-            drawBattleSpirit(ctx, s.allySpecies, 320, 292 - 6 - jump, 1.05, 1, undefined, { bob: -jump * 0.3 });
-          }
-        } else if (s.phase === 'ready') {
-          // 己方精灵落地待机、轻微浮动
-          const bob = Math.sin(now * 0.01) * 2;
-          drawBattleSpirit(ctx, s.allySpecies, 320, 286, 1.1, 1, undefined, { bob });
-        }
-      }
-
-      // 战斗画面：两只精灵 + 动作
       if (st.scene === 'battle' && st.battle) {
         const b = st.battle;
         const now = performance.now();
@@ -216,27 +176,20 @@ export default function App() {
         const enemyScale = b.enemyFx === 'hurt' ? 1 - Math.abs(Math.sin(now * 0.06)) * 0.08 : 1;
         drawBattleSpirit(ctx, b.enemy.species, 470, 130, 1.2, -1, b.enemy.gender,
           { bob: idle, lunge: enemyLunge, shake: enemyShake, scale: enemyScale });
-
         const allyLunge = b.allyFx === 'attack' ? 30 : 0;
         const allyShake = b.allyFx === 'hurt' ? Math.sin(now * 0.06) * 5 : 0;
         const healScale = b.allyFx === 'heal' ? 1 + Math.sin(now * 0.02) * 0.1 : 1;
         drawBattleSpirit(ctx, b.ally.species, 165, 300, 1.2, 1, b.ally.gender,
           { bob: -idle, lunge: allyLunge, shake: allyShake, scale: healScale });
-
-        // 技能特效（属性专属粒子动画），画在精灵之上；进度用绝对时间避免节流导致卡顿
         if (b.skillFx) drawSkillFx(ctx, { ...b.skillFx, t: now - b.skillFx.startAt });
-
-        // 捕捉球动画
         if (b.ballFx) {
           const k = Math.min(1, b.ballFx.t / 1900);
           if (k < 0.3) {
-            // 飞行
             const fk = k / 0.3;
             const bx = 165 + (470 - 165) * fk;
             const by = 300 + (130 - 300) * fk - Math.sin(fk * Math.PI) * 60;
             drawBall(ctx, bx, by, 9, { rot: fk * Math.PI * 3 });
           } else {
-            // 落地摇晃：成功则收进，失败弹出
             const shake = Math.sin(b.ballFx.t * 0.02) * 0.28;
             const glow = b.ballFx.caught && k > 0.8;
             if (glow) {
@@ -247,22 +200,14 @@ export default function App() {
           }
         }
       }
-      requestAnimationFrame(render);
+      raf = requestAnimationFrame(render);
     };
-    const id = requestAnimationFrame(render);
-    return () => cancelAnimationFrame(id);
-  }, [stage, engineState?.scene]);
+    raf = requestAnimationFrame(render);
+    return () => cancelAnimationFrame(raf);
+  }, [stage]);
 
-  // 键盘
+  // 键盘：仅保留对话推进 + Esc 关面板（战斗操作走 BattleUI 按钮）
   useEffect(() => {
-    const eng = engineRef.current;
-    if (!eng || stage !== 'game') return;
-    const set = (e: KeyboardEvent, v: boolean) => {
-      const k = e.key.toLowerCase();
-      if (k === 'shift') { eng.setRun(v); return; }
-      const map: Record<string, string> = { arrowup: 'up', w: 'up', arrowdown: 'down', s: 'down', arrowleft: 'left', a: 'left', arrowright: 'right', d: 'right' };
-      if (map[k]) { eng.setKey(map[k], v); e.preventDefault(); }
-    };
     const advanceDialog = () => {
       if (dialog.length <= 1) dialogDone?.();
       setDialog(d => d.slice(1));
@@ -270,19 +215,10 @@ export default function App() {
     const down = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { setPanel(p => p ? null : 'menu'); return; }
       if ((e.key === 'Enter' || e.key === ' ') && dialog.length) { e.preventDefault(); advanceDialog(); return; }
-      if (e.key === ' ' || e.key.toLowerCase() === 'e') {
-        // 面板/对话打开时不触发世界交互
-        if (panel || questOpen || starterOpen || shopOpen || dialog.length) return;
-        e.preventDefault();
-        eng.interact();
-        return;
-      }
-      set(e, true);
     };
-    const up = (e: KeyboardEvent) => set(e, false);
-    window.addEventListener('keydown', down); window.addEventListener('keyup', up);
-    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
-  }, [stage, dialog.length, dialogDone, panel, questOpen, starterOpen, shopOpen]);
+    window.addEventListener('keydown', down);
+    return () => window.removeEventListener('keydown', down);
+  }, [dialog.length, dialogDone]);
 
   const handleLogin = async (username: string, gender: Gender) => {
     try {
@@ -290,17 +226,20 @@ export default function App() {
       const r = await api.getSave();
       const isNew = !r.data;
       const save = isNew ? createNewSave(username, gender) : r.data!;
-      launch(save, isNew ? 0 : r.version);
+      // 新用户先落库初始存档：后续选宠/探索等权威接口都依赖后端已有存档记录
+      let saveVer = isNew ? 0 : r.version;
+      if (isNew) {
+        const init = await api.submitSave(0, save);
+        if (init.result) saveVer = init.result.version;
+      }
+      launch(save, saveVer);
       showToast('欢迎来到精灵物语，' + username + '！');
+      // 新用户（或尚未选初始伙伴）先用对话引导完成三选一，再开放探索
       if (isNew || save.progress.flags.includes('story:need_starter')) {
-        setDialog(['欢迎来到青芽村，年轻的冒险家！',
-          '这里是新手村，很安全，没有野生精灵。',
-          '先去找村长木老（地图上他的标记），选一只初始伙伴，再踏上旅途吧！',
-          '提示：左键点击地面即可移动，点 NPC 或出口即可交互（按住 Shift 小跑）。']);
-        setDialogDone(null);
-      } else {
-        setDialog(['欢迎回到青芽村！', '左键点地面移动、点 NPC 对话；地图上方出口通往大草原（按住 Shift 可小跑）。']);
-        setDialogDone(null);
+        setDialog(['欢迎来到精灵物语，年轻的冒险家！',
+          '在出发冒险前，先挑一只初始伙伴吧——它会陪你走遍每一个副本。',
+          '选好伙伴后，点主面板「探索」进入副本，找到更多精灵！']);
+        setDialogDone(() => () => setStarterOpen(true));
       }
     } catch (e: any) { showToast('登录失败: ' + e.message); }
   };
@@ -329,7 +268,7 @@ export default function App() {
     }
   };
 
-  // 选择初始伙伴：服务端权威生成精灵，成功后同步存档、关闭选宠面板、进入主线下一步
+  // 选择初始伙伴（老流程兼容：服务端权威生成，同步存档）
   const handleChooseStarter = async (species: number, g: Gender) => {
     const eng = engineRef.current;
     if (!eng || choosing) return;
@@ -341,7 +280,7 @@ export default function App() {
       setStarterOpen(false);
       const name = MONSTERS[species]?.name || '精灵';
       showToast(`“就决定是你了！” ${name} 加入了队伍！`);
-      setDialog([`${name} 回应了你的召唤！`, '主线已完成：挑选初始伙伴。', '现在可以向村长打听更多冒险线索，或前往大草原捕捉新精灵了。']);
+      setDialog([`${name} 回应了你的召唤！`, '现在可以去副本探索，捕捉更多精灵了。']);
       setDialogDone(null);
     } catch (e: any) { showToast('选择失败: ' + e.message); }
     finally { setChoosing(false); }
@@ -362,77 +301,124 @@ export default function App() {
     finally { setBuying(false); }
   };
 
+  // 副本探索：生成种子与校验和，交服务端权威判定；命中精灵则暂存遭遇并同步存档
+  const handleExplore = useCallback(async () => {
+    const eng = engineRef.current;
+    if (!eng) return null;
+    const exploreId = `ex_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const seed = Math.floor(Math.random() * 2_000_000_000);
+    const dto: ExploreDto = { exploreId, dungeonId: currentDungeon.current, seed, clientChecksum: '' };
+    const payload = [dto.exploreId, dto.dungeonId, dto.seed].join('|');
+    dto.clientChecksum = checksum(payload);
+    const r = await api.explore(dto);
+    if (!r.ok || !r.result) { showToast(r.message || '探索失败'); return null; }
+    const res = r.result;
+    eng.applySave(res.data, res.version);
+    if (res.kind === 'monster' && res.encounter) {
+      pendingBattle.current = { species: res.encounter.species, level: res.encounter.level };
+    }
+    const rewardName = res.reward ? `${res.reward.name}×${res.reward.amount}` : undefined;
+    return { kind: res.kind, text: res.text, rewardName };
+  }, [showToast]);
+
+  // 探索命中精灵后进入战斗（DungeonScene 延时回调）
+  const handleExploreBattle = useCallback(() => {
+    const eng = engineRef.current;
+    const enc = pendingBattle.current;
+    pendingBattle.current = null;
+    if (!eng || !enc) return;
+    if (!eng.save.team.some(m => m.hp > 0)) {
+      showToast('你还没有可出战的伙伴，请先选择初始精灵！');
+      setStage('home');
+      return;
+    }
+    eng.startBattle(enc.species, enc.level);
+    prevScene.current = 'battle'; // 避免 onUpdate 首帧误判为战斗结束
+    audio.setBgm('battle');
+  }, [showToast]);
+
+  // 战斗显示只依赖引擎场景（真实玩法从副本探索触发；调试钩子从任意界面触发也能显示）
+  const inBattle = engineState?.scene === 'battle' || engineState?.scene === 'summon';
+  const engSave = engineRef.current?.save;
+
   return (
     <div id="app">
       <header className="topbar">
         <div className="brand"><div className="logo">灵</div><div>
           <div className="brand-title">精灵物语</div>
-          <div className="brand-sub">怪物收集养成 · Web + NestJS 联调版</div>
+          <div className="brand-sub">怪物收集养成 · 手游式主面板版</div>
         </div></div>
         <div className="topbar-right">
-          {stage === 'game' && <span className="badge">存档 v{version} · MySQL</span>}
-          {stage === 'game' && <button className="tbtn" onClick={() => { setPanel('save'); }}>存档</button>}
+          {(stage === 'home' || stage === 'dungeons' || stage === 'dungeon') && <span className="badge">存档 v{version} · MySQL</span>}
+          {(stage === 'home' || stage === 'dungeons' || stage === 'dungeon') && <button className="tbtn" onClick={() => { setPanel('save'); }}>存档</button>}
         </div>
       </header>
 
       <div className="stage">
-        <div className="frame">
-          {/* 3D 第三人称世界层：world/summon/battle 常驻作为背景 */}
-          {stage === 'game' && engineRef.current && (
-            <div className={'world3d' + (engineState?.scene === 'battle' ? ' dimmed' : '')}>
-              <Scene3D engine={engineRef.current} wildTick={engineState?.wilds.length || 0} />
-            </div>
-          )}
-          {/* 2D 特效叠加层：投球/战斗精灵与球动画 */}
-          <canvas ref={canvasRef} width={640} height={448} className="fx-canvas" />
+        <div className={'frame' + (stage === 'home' ? ' home' : '') + (stage === 'dungeons' ? ' dungeons' : '') + (inBattle ? ' battle-bg-wrap' : '')}>
+          {/* 战斗背景：复用副本 AI 场景图 */}
+          {inBattle && <div className="battle-bg" style={{ backgroundImage: 'url(/art/scene_grass.png)' }} />}
 
-          {stage === 'game' && engineState && <Hud save={engineRef.current!.save} mapName={mapName}
-            claimable={claimableCount(engineRef.current!.save)} onOpenQuest={() => setQuestOpen(true)} />}
-          {stage === 'game' && engineState?.scene === 'world' && !panel && !dialog.length && !nearNpc && !starterOpen && !shopOpen &&
-            <div className="hint">左键点地面移动（按住 Shift 小跑）· 点 NPC/出口交互 · 也可 WASD + 空格 · Esc 菜单</div>}
-          {stage === 'game' && engineState?.scene === 'world' && nearNpc && !dialog.length && !panel && !starterOpen && !shopOpen &&
-            <div className="npc-hint">按 <kbd>空格</kbd> 与 <b>{nearNpc.name}</b> 交互</div>}
+          {stage === 'loading' && <div className="overlay center"><div className="center-note">正在连接冒险世界……</div></div>}
 
           {stage === 'title' && <TitleScreen onLogin={handleLogin} />}
 
-          {stage === 'game' && engineState?.scene === 'summon' && engineState.summon &&
-            <SummonUI summon={engineState.summon} caption={summonCaption} save={engineRef.current!.save} />}
+          {stage === 'home' && !inBattle && engSave && <HomePanel save={engSave} claimable={claimableCount(engSave)}
+            onExplore={() => setStage('dungeons')}
+            onNavigate={(n) => {
+              if (n === 'quest') { setQuestOpen(true); return; }
+              setPanel(n);
+            }} />}
 
-          {stage === 'game' && engineState?.scene === 'battle' && engineState.battle &&
-            <BattleUI battle={engineState.battle} onAction={battleAction} onSwitch={switchAlly} save={engineRef.current!.save} />}
+          {stage === 'dungeons' && !inBattle && engSave && <DungeonSelect save={engSave}
+            onBack={() => setStage('home')}
+            onPick={(id) => { currentDungeon.current = id; setStage('dungeon'); setSceneTick(t => t + 1); }} />}
 
-          {panel && stage === 'game' && <Panel name={panel} save={engineRef.current!.save}
-            onClose={() => setPanel(null)} onNavigate={(n) => {
+          {stage === 'dungeon' && engSave && !inBattle && <DungeonScene key={sceneTick} dungeon={currentDungeon.current}
+            save={engSave} onExplore={handleExplore} onBattle={handleExploreBattle}
+            onBack={() => setStage('dungeons')} />}
+
+          {/* 2D 战斗特效层（平时透明不吃事件） */}
+          <canvas ref={canvasRef} width={640} height={448} className="fx-canvas" />
+
+          {(stage === 'home' || stage === 'dungeons' || stage === 'dungeon') && !inBattle && engSave && engineState &&
+            <Hud save={engSave} mapName={stage === 'dungeon' ? undefined : '精灵物语'}
+              claimable={claimableCount(engSave)} onOpenQuest={() => setQuestOpen(true)} />}
+
+          {inBattle && engineState?.battle && <BattleUI battle={engineState.battle} onAction={battleAction}
+            onSwitch={switchAlly} save={engSave!} />}
+
+          {panel && (stage === 'home' || stage === 'dungeons' || stage === 'dungeon') && engSave &&
+            <Panel name={panel} save={engSave} onClose={() => setPanel(null)} onNavigate={(n) => {
               if (n === 'quest') { setPanel(null); setQuestOpen(true); }
               else setPanel(n);
             }} />}
 
-          {questOpen && stage === 'game' && <QuestPanel save={engineRef.current!.save}
+          {questOpen && engSave && <QuestPanel save={engSave}
             onClose={() => setQuestOpen(false)} onClaim={handleClaim} claiming={claiming} />}
 
-          {starterOpen && stage === 'game' && <StarterPanel gender={engineRef.current!.save.profile.gender}
+          {starterOpen && engSave && <StarterPanel gender={engSave.profile.gender}
             onChoose={handleChooseStarter} choosing={choosing} />}
 
-          {shopOpen && stage === 'game' && <ShopPanel save={engineRef.current!.save}
+          {shopOpen && engSave && <ShopPanel save={engSave}
             onBuy={handleBuy} buying={buying} onClose={() => setShopOpen(false)} />}
 
           {dialog.length > 0 && <Dialog lines={dialog} onNext={() => setDialog(d => d.slice(1))}
-            portrait={portraitOf(engineRef.current?.save.profile.gender || 'male')}
+            portrait={portraitOf(engSave?.profile.gender || 'male')}
             onDone={() => { dialogDone?.(); setDialogDone(null); }} />}
           {toast && <Toast text={toast} />}
         </div>
 
         <div className="controls-help">
-          <div className="help-title">操作说明</div>
+          <div className="help-title">玩法说明</div>
           <div className="help-grid">
-            <div><kbd>左键点击</kbd><span>地面移动 / 点 NPC 交互</span></div>
-            <div><kbd>↑↓←→</kbd>/<kbd>WASD</kbd><span>移动</span></div>
-            <div><kbd>Shift</kbd><span>按住小跑（点击或键盘）</span></div>
-            <div><kbd>空格</kbd>/<kbd>E</kbd><span>与 NPC / 出口交互</span></div>
-            <div><kbd>回车</kbd><span>确认对话</span></div>
-            <div><kbd>Esc</kbd><span>菜单</span></div>
+            <div><kbd>探索</kbd><span>主面板进入副本选择</span></div>
+            <div><kbd>探索按钮</kbd><span>副本内概率遇精灵/物品</span></div>
+            <div><kbd>战斗</kbd><span>遇精灵后进入回合制对战</span></div>
+            <div><kbd>捕捉</kbd><span>战斗内掷球收服伙伴</span></div>
+            <div><kbd>Esc</kbd><span>关闭面板</span></div>
           </div>
-          <div className="help-foot">新手村（青芽村）：安全无野怪，有村长、商店、任务板与疗伤石碑。走向地图上方出口可进入「大草原」副本，那里才有野生精灵，走近即投球出战。</div>
+          <div className="help-foot">主面板点「探索」→ 选副本（微风草原 / 潺潺溪谷 / 回声岩洞）→ 右下角「探索」按钮搜寻精灵或道具 → 遇到精灵进入对战，获胜或捕捉即可收入队伍。免费无限探索，副本越深精灵越强。</div>
         </div>
       </div>
     </div>

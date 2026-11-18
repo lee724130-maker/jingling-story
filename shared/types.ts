@@ -98,6 +98,28 @@ export interface QuestClaimResult {
   data: SaveData;
 }
 
+/** 探索上报：客户端只上报副本 id、幂等键与随机种子，结果由服务端按种子权威判定 */
+export interface ExploreDto {
+  exploreId: string;       // 幂等键，一次点击一个
+  dungeonId: string;
+  seed: number;
+  clientChecksum: string;
+}
+
+/** 探索结果：monster 只返回遭遇信息（进战斗走原结算）；item 服务端已写入存档 */
+export interface ExploreResult {
+  exploreId: string;
+  dungeonId: string;
+  kind: 'monster' | 'item' | 'nothing';
+  /** kind=monster：遭遇精灵种类与等级（用于 startBattle） */
+  encounter?: { species: number; level: number; name: string };
+  /** kind=item：发放的物品与数量 */
+  reward?: { item: string; amount: number; name: string };
+  text: string;
+  version: number;
+  data: SaveData;
+}
+
 /** 结算返回：权威结果 + 最新存档（version 递增） */
 export interface SettleResult {
   coinsGained: number;

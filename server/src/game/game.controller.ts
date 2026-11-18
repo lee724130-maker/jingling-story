@@ -1,7 +1,7 @@
 import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '../common/auth.guard';
 import { GameService } from './game.service';
-import { ApiResponse, BattleSettleDto, CaptureSettleDto, QuestClaimDto, ChooseStarterDto, ShopBuyDto } from '../../../shared/types';
+import { ApiResponse, BattleSettleDto, CaptureSettleDto, QuestClaimDto, ChooseStarterDto, ShopBuyDto, ExploreDto } from '../../../shared/types';
 
 /* 服务端权威结算：战斗/捕获奖励由服务端按共享规则重算，客户端只上报上下文 */
 @Controller('api/game')
@@ -36,6 +36,12 @@ export class GameController {
   @Post('shop/buy')
   async shopBuy(@Req() req: any, @Body() dto: ShopBuyDto): Promise<ApiResponse<any>> {
     const r = await this.game.shopBuy(req.user.uid, dto);
+    return { code: r.code, message: r.message, data: r.data };
+  }
+
+  @Post('explore')
+  async explore(@Req() req: any, @Body() dto: ExploreDto): Promise<ApiResponse<any>> {
+    const r = await this.game.explore(req.user.uid, dto);
     return { code: r.code, message: r.message, data: r.data };
   }
 }

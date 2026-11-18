@@ -350,7 +350,7 @@ export default function App() {
         </div></div>
         <div className="topbar-right">
           {(stage === 'home' || stage === 'dungeons' || stage === 'dungeon') && <span className="badge">存档 v{version} · MySQL</span>}
-          {(stage === 'home' || stage === 'dungeons' || stage === 'dungeon') && <button className="tbtn" onClick={() => { setPanel('save'); }}>存档</button>}
+          {(stage === 'dungeons' || stage === 'dungeon') && <button className="tbtn" onClick={() => { setPanel('save'); }}>存档</button>}
         </div>
       </header>
 
@@ -381,7 +381,7 @@ export default function App() {
           {/* 2D 战斗特效层（平时透明不吃事件） */}
           <canvas ref={canvasRef} width={640} height={448} className="fx-canvas" />
 
-          {(stage === 'home' || stage === 'dungeons' || stage === 'dungeon') && !inBattle && engSave && engineState &&
+          {(stage === 'dungeons' || stage === 'dungeon') && !inBattle && engSave && engineState &&
             <Hud save={engSave} mapName={stage === 'dungeon' ? undefined : '精灵物语'}
               claimable={claimableCount(engSave)} onOpenQuest={() => setQuestOpen(true)} />}
 

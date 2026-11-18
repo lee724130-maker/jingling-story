@@ -52,14 +52,14 @@ function checksum(payload) { let h = 5381; for (let i = 0; i < payload.length; i
   await page.waitForSelector('.starter-box', { state: 'detached', timeout: 3000 }).catch(() => {});
   await sleep(300);
 
-  // 3) 主面板出现
-  const home = await page.$('.home-panel');
-  check('进入主面板', !!home);
-  const navCount = await page.$$eval('.home-nav-btn', els => els.length);
-  check('主面板有 6 个导航入口', navCount === 6, { navCount });
+  // 3) 场景化主面板出现
+  const home = await page.$('.home-scene');
+  check('进入主面板（村庄场景）', !!home);
+  const spotCount = await page.$$eval('.scene-spot', els => els.length);
+  check('场景有 5 个可点击地标热点', spotCount === 5, { spotCount });
 
-  // 4) 点击探索 → 副本选择
-  const exploreNav = await page.$('.home-nav-btn.primary');
+  // 4) 点击场景「探索」热点 → 副本选择
+  const exploreNav = await page.$('.scene-spot.primary');
   if (exploreNav) await exploreNav.click();
   await sleep(400);
   const dsel = await page.$('.dungeon-select');

@@ -100,7 +100,8 @@ export const ART = {
   trainerFemaleHd: '/art/trainer_female_hd.png',
   spirits: '/art/spirits.png',
   sceneGrass: '/art/scene_grass.png',
-  sceneSky: '/art/scene_sky.png'
+  sceneSky: '/art/scene_sky.png',
+  sceneVillage: '/art/scene_village.png'
 };
 export const SPIRIT_CELL: Record<number, [number, number]> = {
   1: [0,0], 2: [0,0],

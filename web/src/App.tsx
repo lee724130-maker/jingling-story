@@ -21,6 +21,7 @@ import ShopPanel from './components/ShopPanel';
 import Dialog from './components/Dialog';
 import Toast from './components/Toast';
 import SummonUI from './components/SummonUI';
+import { portraitOf } from './components/TrainerPortrait';
 
 type Stage = 'loading' | 'title' | 'game';
 
@@ -416,6 +417,7 @@ export default function App() {
             onBuy={handleBuy} buying={buying} onClose={() => setShopOpen(false)} />}
 
           {dialog.length > 0 && <Dialog lines={dialog} onNext={() => setDialog(d => d.slice(1))}
+            portrait={portraitOf(engineRef.current?.save.profile.gender || 'male')}
             onDone={() => { dialogDone?.(); setDialogDone(null); }} />}
           {toast && <Toast text={toast} />}
         </div>

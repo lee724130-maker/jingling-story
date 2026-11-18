@@ -7,5 +7,5 @@ export default defineConfig({
   resolve: {
     alias: { '@shared': path.resolve(__dirname, '../shared') }
   },
-  server: { port: 5180, strictPort: true, proxy: { '/api': 'http://localhost:3000' } }
+  server: { port: 5180, strictPort: true, proxy: { '/api': 'http://localhost:3001' } }
 });

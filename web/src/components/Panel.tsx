@@ -2,6 +2,7 @@ import React from 'react';
 import type { SaveData } from '@shared/types';
 import { MONSTERS, TYPES, ITEMS } from '../game/config';
 import SpiritArt from './SpiritArt';
+import TrainerPortrait from './TrainerPortrait';
 
 function MonThumb({ species, size = 56 }: { species: number; size?: number }) {
   return <SpiritArt species={species} size={size} />;
@@ -10,12 +11,38 @@ function MonThumb({ species, size = 56 }: { species: number; size?: number }) {
 export default function Panel({ name, save, onClose, onNavigate }: {
   name: string; save: SaveData; onClose: () => void; onNavigate: (n: string) => void;
 }) {
-  const titles: Record<string,string> = { menu:'菜单', team:'队伍与仓库', bag:'背包', dex:'精灵图鉴', save:'存档管理', help:'玩法说明' };
+  const titles: Record<string,string> = { menu:'菜单', profile:'训练师名片', team:'队伍与仓库', bag:'背包', dex:'精灵图鉴', save:'存档管理', help:'玩法说明' };
   const content = () => {
     if (name === 'menu') return <div className="menu-list">
-      {[['team','队伍','查看与切换出战精灵'],['bag','背包','灵兽球 · 活力草'],['dex','精灵图鉴','已见 / 已捕获'],['quest','冒险任务','完成任务领奖励'],['save','存档管理','云端存档信息'],['help','玩法说明','']].map(([k,t,s]) =>
+      {[['profile','训练师名片','形象 · 战绩 · 冒险进度'],['team','队伍','查看与切换出战精灵'],['bag','背包','灵兽球 · 活力草'],['dex','精灵图鉴','已见 / 已捕获'],['quest','冒险任务','完成任务领奖励'],['save','存档管理','云端存档信息'],['help','玩法说明','']].map(([k,t,s]) =>
         <button key={k} className="menu-item" onClick={() => onNavigate(k)}>{t}<small>{s}</small></button>)}
     </div>;
+    if (name === 'profile') {
+      const caught = save.pokedex.caught.length, seen = save.pokedex.seen.length;
+      const total = Object.keys(MONSTERS).length;
+      const lead = save.team[0];
+      return <div className="profile-card">
+        <div className="profile-portrait-wrap">
+          <TrainerPortrait gender={save.profile.gender} size={200} title="你的训练师形象" />
+          <div className="profile-badge">{save.profile.gender === 'female' ? '♀ 女训练师' : '♂ 男训练师'}</div>
+        </div>
+        <div className="profile-info">
+          <h3>{save.profile.name}</h3>
+          <div className="profile-sub">精灵物语 · 冒险者</div>
+          <div className="profile-stats">
+            <div><span>冒险步数</span><b>{save.profile.steps}</b></div>
+            <div><span>对战次数</span><b>{save.profile.battles}</b></div>
+            <div><span>胜场</span><b>{save.profile.wins}</b></div>
+            <div><span>当前队伍</span><b>{save.team.length}/6</b></div>
+            <div><span>图鉴遇见</span><b>{seen}/{total}</b></div>
+            <div><span>图鉴捕获</span><b>{caught}/{total}</b></div>
+          </div>
+          <div className="profile-lead">
+            {lead ? <><span>出战伙伴</span><MonThumb species={lead.species} size={48} /><b>{MONSTERS[lead.species].name} Lv.{lead.level}</b></> : <span>尚未选择初始伙伴</span>}
+          </div>
+        </div>
+      </div>;
+    }
     if (name === 'team') {
       const all = [...save.team, ...save.storage];
       return <div className="card-grid">{all.map((m, i) => {

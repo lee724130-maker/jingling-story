@@ -96,6 +96,8 @@ export const NATURES = ['勇敢','冷静','活泼','内向','贪吃','耐心','�
 export const ART = {
   trainerMale: '/art/trainer_male.png',
   trainerFemale: '/art/trainer_female.png',
+  trainerMaleHd: '/art/trainer_male_hd.png',
+  trainerFemaleHd: '/art/trainer_female_hd.png',
   spirits: '/art/spirits.png',
   sceneGrass: '/art/scene_grass.png',
   sceneSky: '/art/scene_sky.png'

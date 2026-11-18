@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import type { Gender } from '@shared/types';
 import { ART } from '../game/config';
-
 export default function TitleScreen({ onLogin }: { onLogin: (name: string, gender: Gender) => void }) {
   const [name, setName] = useState('小训练师');
   const [gender, setGender] = useState<Gender>('male');
@@ -11,7 +10,7 @@ export default function TitleScreen({ onLogin }: { onLogin: (name: string, gende
     <div className="overlay center title-screen">
       <div className="title-card">
         {showGender && (
-          <div className="trainer-preview"><img src={gender === 'male' ? ART.trainerMale : ART.trainerFemale} alt="训练师" /></div>
+          <div className="trainer-preview"><img src={gender === 'male' ? ART.trainerMaleHd : ART.trainerFemaleHd} alt="训练师" /></div>
         )}
         {!showGender && <div className="title-emblem">灵</div>}
         <h1>精灵物语</h1>

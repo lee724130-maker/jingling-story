@@ -1,5 +1,5 @@
 /* E2E：验证前端战斗胜利后走服务端结算，version 递增且金币增加 */
-const { chromium } = require('C:/Users/Administrator/Desktop/REA测试/node_modules/playwright-core');
+const { chromium } = require('../tools/playwright-core');
 const path = require('path');
 const OUT = path.resolve(__dirname, '../.chrome-e2e');
 const sleep = ms => new Promise(r => setTimeout(r, ms));

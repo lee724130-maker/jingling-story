@@ -1,5 +1,5 @@
 /* E2E：新手村系统 - 无野怪 / 三选一主宠 / 商店购买 / 场景切换（出口往返）/ 防作弊 */
-const { chromium } = require('C:/Users/Administrator/Desktop/REA测试/node_modules/playwright-core');
+const { chromium } = require('../tools/playwright-core');
 const path = require('path');
 const OUT = path.resolve(__dirname, '../.chrome-e2e');
 const sleep = ms => new Promise(r => setTimeout(r, ms));

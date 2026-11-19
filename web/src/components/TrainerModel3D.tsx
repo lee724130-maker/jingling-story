@@ -1,5 +1,5 @@
-import React, { Suspense, useEffect, useRef, useState } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import React, { Suspense, useEffect, useState } from 'react';
+import { Canvas } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import type { Gender } from '@shared/types';
@@ -15,8 +15,6 @@ useGLTF.preload('/models/characters/female_ai.glb');
 
 function Model({ gender }: { gender: Gender }) {
   const { scene } = useGLTF(trainerModelOf(gender));
-  const ref = useRef<THREE.Group>(null);
-  const clock = useRef(0);
 
   // 归一化高度到目标尺寸、贴地、开启阴影；useGLTF 缓存同一对象，需 clone 避免两性别实例互串
   const model = React.useMemo(() => {
@@ -37,15 +35,8 @@ function Model({ gender }: { gender: Gender }) {
     return m;
   }, [scene]);
 
-  useFrame((_, delta) => {
-    clock.current += delta;
-    if (!ref.current) return;
-    // 轻微左右转身 + 呼吸浮动，让静态模型有生命感
-    ref.current.rotation.y = Math.sin(clock.current * 0.5) * 0.32 - 0.12;
-    ref.current.position.y = Math.sin(clock.current * 1.6) * 0.018;
-  });
-
-  return <group ref={ref}>
+  // 固定背对镜头（模型默认面朝 +Z，旋转 π 让背面朝向相机），静止站好无动画
+  return <group rotation={[0, Math.PI, 0]}>
     <primitive object={model} />
   </group>;
 }
@@ -66,7 +57,7 @@ export default function TrainerModel3D({ gender, onError }: { gender: Gender; on
 
   return <Canvas
     camera={{ position: [0, 0.15, 3.6], fov: 38, near: 0.01, far: 100 }}
-    gl={{ alpha: true, antialias: true, preserveDrawingBuffer: false }}
+    gl={{ alpha: true, antialias: true, preserveDrawingBuffer: true }}
     dpr={[1, 2]}
     onCreated={({ gl }) => { gl.setClearColor(0x000000, 0); }}
     style={{ background: 'transparent', width: '100%', height: '100%' }}

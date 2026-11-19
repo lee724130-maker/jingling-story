@@ -1,6 +1,6 @@
 /* E2E：AI 写实训练师立绘落地（方案③）
  * 验证：高清立绘资源 200 / 标题选性别显示 / 对话头像 / 选宠界面立绘 / 训练师名片立绘+战绩 / 男女立绘切换 / 零错误 */
-const { chromium } = require('C:/Users/Administrator/Desktop/REA测试/node_modules/playwright-core');
+const { chromium } = require('../tools/playwright-core');
 const path = require('path');
 const OUT = path.resolve(__dirname, '../.chrome-e2e');
 const sleep = ms => new Promise(r => setTimeout(r, ms));

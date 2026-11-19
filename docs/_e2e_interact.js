@@ -1,6 +1,6 @@
 /* E2E：点击移动 + 3D 人物模型 + 小跑 + 点击 NPC 交互
  * 验证：hero.glb 加载 / setMoveTarget 寻路 / walking 状态 / 小跑更快 / Shift / NPC 点击回调 / 真实鼠标点地面 / 零错误 */
-const { chromium } = require('C:/Users/Administrator/Desktop/REA测试/node_modules/playwright-core');
+const { chromium } = require('../tools/playwright-core');
 const path = require('path');
 const OUT = path.resolve(__dirname, '../.chrome-e2e');
 const sleep = ms => new Promise(r => setTimeout(r, ms));

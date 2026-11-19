@@ -1,7 +1,7 @@
 /* E2E：手游式主面板 + 副本探索（v2 玩法）
  * 验证：新用户三选一引导 / 主面板导航 / 副本选择 / 探索命中判定(种子可复现) /
  *       服务端权威校验和拒绝篡改 / exploreId 幂等 / 物品发放 / 零页面错误 */
-const { chromium } = require('C:/Users/Administrator/Desktop/REA测试/node_modules/playwright-core');
+const { chromium } = require('../tools/playwright-core');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const R = [];
 function check(name, cond, extra) { R.push({ name, pass: !!cond, extra }); console.log((cond ? 'PASS ' : 'FAIL ') + name, extra ? JSON.stringify(extra) : ''); }

@@ -1,5 +1,5 @@
 /* E2E：任务系统 - 面板渲染 / 进度推导 / 权威领奖 / 防重复领取 / 零错误 */
-const { chromium } = require('C:/Users/Administrator/Desktop/REA测试/node_modules/playwright-core');
+const { chromium } = require('../tools/playwright-core');
 const path = require('path');
 const OUT = path.resolve(__dirname, '../.chrome-e2e');
 const sleep = ms => new Promise(r => setTimeout(r, ms));

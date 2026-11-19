@@ -1,6 +1,6 @@
 /* E2E：程序化音频系统（Web Audio BGM + SFX + 静音开关）
  * 验证：audio 模块挂载 / 用户手势后 unlock / AudioContext running / BGM 曲日志 / 静音开关持久化 / 音效触发不报错 / 场景切换换曲 / 零页面错误 */
-const { chromium } = require('C:/Users/Administrator/Desktop/REA测试/node_modules/playwright-core');
+const { chromium } = require('../tools/playwright-core');
 const path = require('path');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const R = [];

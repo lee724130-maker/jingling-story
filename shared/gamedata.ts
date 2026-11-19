@@ -101,7 +101,10 @@ export const ART = {
   spirits: '/art/spirits.png',
   sceneGrass: '/art/scene_grass.png',
   sceneSky: '/art/scene_sky.png',
-  sceneVillage: '/art/scene_village.png'
+  sceneVillage: '/art/scene_village.png',
+  sceneMeadow: '/art/scene_meadow.png',
+  sceneStream: '/art/scene_stream.png',
+  sceneCavern: '/art/scene_cavern.png'
 };
 export const SPIRIT_CELL: Record<number, [number, number]> = {
   1: [0,0], 2: [0,0],

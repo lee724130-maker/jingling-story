@@ -282,27 +282,41 @@ kbd{ display:inline-block; min-width:22px; text-align:center; padding:2px 6px; b
 /* 副本选择 */
 .dungeon-select{ position:absolute; inset:0; display:flex; flex-direction:column; overflow:auto;
   background:linear-gradient(160deg,#132232,#0c151f); }
-.ds-head{ padding:46px 20px 8px; }
-.ds-back{ background:none; border:none; color:var(--accent); font-size:13px; cursor:pointer; padding:0 0 8px; }
-.ds-back:hover{ text-decoration:underline; }
-.ds-head h2{ font-size:20px; letter-spacing:1px; }
-.ds-head p{ font-size:12px; color:var(--muted); margin-top:5px; }
-.ds-list{ flex:1; padding:6px 18px 18px; display:flex; flex-direction:column; gap:11px; }
-.ds-card{ position:relative; min-height:104px; border-radius:14px; overflow:hidden; border:1px solid var(--line);
-  background:var(--panel); color:var(--text); text-align:left; cursor:pointer; transition:.15s; padding:0; }
-.ds-card:hover:not(:disabled){ transform:translateY(-2px); border-color:var(--dc,var(--accent)); }
-.ds-card.locked{ opacity:.5; cursor:not-allowed; filter:grayscale(.75); }
-.ds-card-bg{ position:absolute; inset:0; background-size:cover; background-position:center; opacity:.3; }
-.ds-card::after{ content:''; position:absolute; inset:0;
-  background:linear-gradient(90deg,rgba(8,14,20,.92),rgba(8,14,20,.5)); }
-.ds-card-body{ position:relative; z-index:1; padding:11px 15px; }
-.ds-card-top{ display:flex; align-items:baseline; gap:10px; }
-.ds-card-top h3{ font-size:16px; color:var(--dc,var(--text)); }
-.ds-lv{ font-size:11px; color:var(--accent2); }
-.ds-desc{ font-size:11.5px; color:#c3d2e0; margin:5px 0; }
-.ds-species{ font-size:11px; color:var(--muted); }
-.ds-rates{ display:flex; gap:12px; margin-top:6px; font-size:10.5px; color:#9fd8c3; }
-.ds-lock{ margin-top:6px; font-size:11px; color:#e2a05c; }
+.ds-banner{ position:relative; flex:0 0 auto; height:172px; background-size:cover; background-position:center 42%;
+  display:flex; flex-direction:column; justify-content:space-between; padding:52px 20px 16px; }
+.ds-banner::after{ content:''; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(180deg,rgba(8,16,24,.55),rgba(8,16,24,.15) 42%,#101b27 100%); }
+.ds-banner > *{ position:relative; z-index:1; }
+.ds-back{ align-self:flex-start; background:rgba(8,16,24,.55); border:1px solid var(--line);
+  border-radius:16px; color:var(--accent); font-size:12.5px; cursor:pointer; padding:5px 12px; }
+.ds-back:hover{ border-color:var(--accent); }
+.ds-banner-text h2{ font-size:22px; letter-spacing:2px; color:#fff; text-shadow:0 2px 10px #000; }
+.ds-banner-text p{ font-size:12px; color:#d6e6e2; margin-top:5px; text-shadow:0 1px 4px #000; }
+.ds-list{ flex:1; padding:12px 18px 20px; display:flex; flex-direction:column; gap:12px; }
+.ds-card{ position:relative; min-height:126px; border-radius:15px; overflow:hidden; border:1px solid var(--line);
+  background:var(--panel); color:var(--text); text-align:left; cursor:pointer; transition:.18s; padding:0;
+  box-shadow:0 6px 18px rgba(0,0,0,.25); }
+.ds-card:hover:not(:disabled){ transform:translateY(-3px); border-color:var(--dc,var(--accent));
+  box-shadow:0 10px 26px rgba(0,0,0,.38),0 0 0 1px var(--dc,var(--accent)); }
+.ds-card.locked{ opacity:.5; cursor:not-allowed; filter:grayscale(.8); }
+.ds-card-bg{ position:absolute; inset:0; background-size:cover; background-position:center; opacity:.62;
+  transition:transform .3s; }
+.ds-card:hover:not(:disabled) .ds-card-bg{ transform:scale(1.06); }
+.ds-card-shade{ position:absolute; inset:0;
+  background:linear-gradient(90deg,rgba(8,14,20,.94) 0%,rgba(8,14,20,.7) 45%,rgba(8,14,20,.28) 100%); }
+.ds-card-body{ position:relative; z-index:1; padding:13px 16px; max-width:80%; }
+.ds-card-top{ display:flex; align-items:center; gap:10px; }
+.ds-index{ font-size:12px; font-weight:800; color:#06251d; background:var(--dc,var(--accent));
+  padding:2px 7px; border-radius:7px; letter-spacing:.5px; }
+.ds-card-top h3{ font-size:17px; color:var(--dc,var(--text)); }
+.ds-lv{ font-size:11px; color:#ffe9b0; background:rgba(0,0,0,.35); padding:2px 8px; border-radius:10px; }
+.ds-desc{ font-size:11.5px; color:#e0eaf2; margin:6px 0; text-shadow:0 1px 3px #000; }
+.ds-species{ font-size:11px; color:#bcd0dc; text-shadow:0 1px 3px #000; }
+.ds-rates{ display:flex; gap:12px; margin-top:7px; font-size:10.5px; color:#a8e9cf; }
+.ds-lock{ margin-top:7px; font-size:11px; color:#ffc27a; }
+.ds-go{ position:absolute; right:15px; bottom:14px; z-index:1; font-size:12px; font-weight:700;
+  color:#fff; background:var(--dc,var(--accent)); padding:6px 13px; border-radius:16px;
+  box-shadow:0 3px 10px rgba(0,0,0,.4); }
 /* 副本场景 + 探索反馈 */
 .dungeon-scene{ position:absolute; inset:0; overflow:hidden; background:#0b131b; }
 .dungeon-bg{ position:absolute; inset:0; background-size:cover; background-position:center; }
@@ -314,6 +328,17 @@ kbd{ display:inline-block; min-width:22px; text-align:center; padding:2px 6px; b
 .dungeon-title span{ font-size:11px; color:#d8e8e2; text-shadow:0 1px 4px #000; }
 .dungeon-hud{ position:absolute; top:46px; right:14px; z-index:5; display:flex; gap:7px; }
 .dungeon-hud span{ padding:5px 10px; border-radius:16px; }
+.dungeon-scene-info{ position:absolute; left:16px; bottom:20px; z-index:5; max-width:min(58%,380px);
+  background:linear-gradient(135deg,rgba(8,16,24,.86),rgba(8,16,24,.55)); border:1px solid rgba(255,255,255,.1);
+  border-left:3px solid var(--dc,var(--accent)); border-radius:12px; padding:12px 15px; }
+.dungeon-scene-info p{ font-size:12px; line-height:1.55; color:#e4eef4; text-shadow:0 1px 3px #000; }
+.dsi-partner{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:9px; padding-top:9px;
+  border-top:1px solid rgba(255,255,255,.12); }
+.dsi-label{ font-size:10.5px; color:var(--dc,var(--accent)); background:rgba(255,255,255,.08);
+  padding:2px 7px; border-radius:9px; }
+.dsi-name{ font-size:13px; font-weight:800; color:#fff; }
+.dsi-lv{ font-size:11px; color:#ffe9b0; }
+.dsi-hint{ font-size:10.5px; color:#b9cbd8; }
 .explore-fx{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:6;
   text-align:center; pointer-events:none; }
 .fx-orb{ font-size:60px; line-height:1; color:#fff; text-shadow:0 0 24px currentColor; }

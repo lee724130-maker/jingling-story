@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import type { SaveData } from '@shared/types';
 import { DUNGEONS, type DungeonId } from '@shared/dungeons';
+import { MONSTERS, ART } from '../game/config';
 
 /** 探索中的动态反馈阶段 */
 type ExploreFx = 'idle' | 'searching' | 'monster' | 'item' | 'nothing';
 
-/** 副本场景：静态 AI 场景图背景 + 右下角探索按钮 + 探索结果反馈 */
+/** 副本场景：主题场景图背景 + 右下角探索按钮 + 探索结果反馈 */
 export default function DungeonScene({ dungeon, save, onExplore, onBack, onBattle }: {
   dungeon: DungeonId;
   save: SaveData;
@@ -18,6 +19,7 @@ export default function DungeonScene({ dungeon, save, onExplore, onBack, onBattl
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const lead = save.team[0];
+  const leadMon = lead ? MONSTERS[lead.species] : null;
 
   const doExplore = async () => {
     if (busy) return;
@@ -39,11 +41,18 @@ export default function DungeonScene({ dungeon, save, onExplore, onBack, onBattl
     <button className="ds-back dungeon-back" onClick={onBack}>‹ 离开副本</button>
     <div className="dungeon-title">
       <h2>{def.name}</h2>
-      <span>{def.subtitle}</span>
+      <span>{def.subtitle} · {def.encounters.length} 种精灵栖息</span>
     </div>
-    <div className="dungeon-hud">
-      <span>◈ {save.resources.coins}</span>
-      <span>{lead ? `${lead.species ? '' : ''}出战：${lead.level} 级` : '尚无伙伴'}</span>
+    <div className="dungeon-scene-info">
+      <p>{def.desc}</p>
+      <div className="dsi-partner">
+        {lead && leadMon ? <>
+          <span className="dsi-label">同行伙伴</span>
+          <span className="dsi-name">{leadMon.name}</span>
+          <span className="dsi-lv">Lv.{lead.level}</span>
+          <span className="dsi-hint">点「探索」发现这里的精灵与道具</span>
+        </> : <span className="dsi-hint">先回村庄挑选一只初始伙伴，再来探索</span>}
+      </div>
     </div>
 
     {fx !== 'idle' && <div className={'explore-fx ' + fx}>

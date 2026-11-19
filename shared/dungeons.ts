@@ -1,7 +1,7 @@
 /* 精灵物语 · 副本配置（前后端共用）
  * 手游式玩法：主面板 → 副本选择 → 副本场景点「探索」→ 概率判定（精灵/物品/空）。
  * 探索判定与物品发放由服务端按种子权威结算；遭遇精灵只返回种类/等级，进战斗后走原有结算。
- * 场景图复用现有 AI 素材（scene_grass/scene_sky），不新增美术、不消耗积分。 */
+ * 场景图：各副本独立 AI 主题图（scene_meadow/scene_stream/scene_cavern），与主面板村庄图风格统一。 */
 
 export type DungeonId = 'meadow' | 'stream' | 'cavern';
 
@@ -32,7 +32,7 @@ export const DUNGEONS: Record<DungeonId, DungeonDef> = {
   meadow: {
     id: 'meadow', name: '微风草原', subtitle: '新手区 · Lv.3-7',
     desc: '青芽村外的开阔草原，风里带着青草香。适合初出茅庐的训练师。',
-    bg: ART.sceneGrass, accent: '#5fd0a6',
+    bg: ART.sceneMeadow, accent: '#5fd0a6',
     encounters: [
       { species: 1, w: 18 }, { species: 3, w: 18 }, { species: 5, w: 16 },
       { species: 7, w: 14 }, { species: 9, w: 12 }, { species: 11, w: 12 },
@@ -49,7 +49,7 @@ export const DUNGEONS: Record<DungeonId, DungeonDef> = {
   stream: {
     id: 'stream', name: '潺潺溪谷', subtitle: '进阶区 · Lv.8-13',
     desc: '穿过草原的清澈溪流，水雾弥漫。栖息着更强韧的精灵。',
-    bg: ART.sceneGrass, accent: '#5aa9e6',
+    bg: ART.sceneStream, accent: '#5aa9e6',
     encounters: [
       { species: 3, w: 20 }, { species: 4, w: 14 }, { species: 5, w: 14 },
       { species: 6, w: 12 }, { species: 11, w: 12 }, { species: 12, w: 10 },
@@ -67,7 +67,7 @@ export const DUNGEONS: Record<DungeonId, DungeonDef> = {
   cavern: {
     id: 'cavern', name: '回声岩洞', subtitle: '挑战区 · Lv.14-20',
     desc: '幽深岩洞，回荡着奇怪的声响。只有经验丰富的训练师才敢深入。',
-    bg: ART.sceneGrass, accent: '#b98bff',
+    bg: ART.sceneCavern, accent: '#b98bff',
     encounters: [
       { species: 9, w: 20 }, { species: 10, w: 16 }, { species: 8, w: 16 },
       { species: 12, w: 14 }, { species: 2, w: 12 }, { species: 6, w: 10 },

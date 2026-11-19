@@ -4,6 +4,7 @@ import { claimableCount } from '@shared/quests';
 import { MONSTERS, TYPES, ART } from '../game/config';
 import { audio } from '../game/audio';
 import TrainerPortrait from './TrainerPortrait';
+import TrainerModel3D from './TrainerModel3D';
 
 /** 场景化主面板：整张村庄场景图铺满，在对应物件上放可点击热点替代按钮列表 */
 export default function HomePanel({ save, onExplore, onNavigate, claimable }: {
@@ -14,6 +15,7 @@ export default function HomePanel({ save, onExplore, onNavigate, claimable }: {
 }) {
   const lead = save.team[0];
   const [active, setActive] = useState<string | null>(null);
+  const [modelFailed, setModelFailed] = useState(false);
   const [muted, setMuted] = useState(audio.muted);
   const VOL_STEPS = [0.3, 0.6, 1];
   const [volIdx, setVolIdx] = useState(() => { const i = VOL_STEPS.indexOf(audio.volume); return i >= 0 ? i : 1; });
@@ -28,7 +30,7 @@ export default function HomePanel({ save, onExplore, onNavigate, claimable }: {
 
   // 热点位置对齐场景图物件：小屋=商店，告示板=任务，喷泉=队伍，石碑=图鉴，右侧林间路=探索，玩家=名片
   const spots = [
-    { key: 'shop', icon: '◈', label: '商店', sub: '灵兽球 · 活力草', x: 13, y: 47, kind: 'shop', action: () => onNavigate('shop') },
+    { key: 'shop', icon: '◈', label: '商店', sub: '灵兽球 · 活力草', x: 20, y: 38, kind: 'shop', action: () => onNavigate('shop') },
     { key: 'quest', icon: '⚑', label: '任务', sub: claimable > 0 ? `${claimable} 个可领奖` : '冒险目标', x: 39, y: 50, kind: 'quest', action: () => onNavigate('quest'), dot: claimable > 0 },
     { key: 'team', icon: '✦', label: '队伍', sub: '出战精灵', x: 54, y: 60, kind: 'team', action: () => onNavigate('team') },
     { key: 'dex', icon: '▤', label: '图鉴', sub: `${save.pokedex.caught.length}/${Object.keys(MONSTERS).length} 已捕获`, x: 82, y: 46, kind: 'dex', action: () => onNavigate('dex') },
@@ -60,9 +62,11 @@ export default function HomePanel({ save, onExplore, onNavigate, claimable }: {
       <button className="scene-save-btn" onClick={() => onNavigate('save')}>存档</button>
     </div>
 
-    {/* 训练师立绘：站在村口，点击进训练师名片 */}
+    {/* 训练师 3D 模型：站在村口，点击进训练师名片；WebGL 不可用时降级到立绘 */}
     <button className="scene-trainer" onClick={() => onNavigate('profile')} title="训练师名片">
-      <TrainerPortrait gender={save.profile.gender} size={110} title="你的训练师" />
+      {modelFailed
+        ? <TrainerPortrait gender={save.profile.gender} size={110} title="你的训练师" />
+        : <TrainerModel3D gender={save.profile.gender} onError={() => setModelFailed(true)} />}
     </button>
 
     {/* 可点击热点 */}

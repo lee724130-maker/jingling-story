@@ -20,3 +20,4 @@ server/data/
 
 # 3D 模型处理临时工作目录（中间产物/预览脚本/大文件）
 .tmp_model/
+.tmp_model2/

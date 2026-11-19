@@ -10,6 +10,7 @@
 > `登录 → 主面板（**村庄场景图 + 可点击地标热点**）→ 探索 → 选副本（微风草原 / 潺潺溪谷 / 回声岩洞）→ 静态场景点右下角「探索」→ 概率遇到精灵/物品 → 遇精灵进战斗`。
 > - **主面板场景化（2026-11-18 二次改进）**：应老板要求"要有场景可以点击，而不是自己设计按钮跳转"，主面板改为整张 AI 村庄场景图（`art/scene_village.png`）+ 叠加可点击地标热点——小屋=商店、告示板=任务、喷泉=队伍、石碑=图鉴、林间小路=探索（橙色高亮）、玩家立绘=训练师名片，悬停弹出说明。替代了原先的纯按钮九宫格。
 > - **副本场景化（2026-11-19）**：执行规划文档 11.7 明日清单 P0 第 1 项。三副本各有独立 AI 主题场景图（`scene_meadow.png` 草原 / `scene_stream.png` 溪谷 / `scene_cavern.png` 岩洞，中国站 Agnes 生成，与村庄图同风格）；副本选择页改为村庄横幅 + 主题场景大卡片（序号徽章/常见精灵/概率/进入按钮，未解锁灰度），副本场景页补底部信息条（描述+同行伙伴+出战等级）并修复出战伙伴名未显示的 bug，金币去重。
+> - **主角真 3D 模型（2026-11-19）**：应老板要求"用模型替换主页主角图片，不要用图片代替人物"，主面板村庄场景里的训练师由 AI 立绘 `<img>` 改为 **React Three Fiber 实时渲染的 3D 模型**——男主 `models/characters/male_ai.glb`（绿披风皮甲战士）、女主 `female_ai.glb`（长发背箭袋游侠），均为中国站混元3D 生成后 gltf-transform 压缩（75M→1.6M / 72M→1.7M，150万面→约4万面）；按存档性别自动切换、轻微转身+呼吸浮动、透明背景融入场景，WebGL 不可用时自动降级到立绘。标题页/对话/选宠/名片仍用 AI 写实立绘。
 > - 探索判定由**服务端按种子权威结算**（`POST /api/game/explore`，校验和 + exploreId 幂等 + 副本解锁校验），免费无限探索、纯概率；物品直接发到权威存档，遇敌只返回种类/等级，战斗沿用原有回合制 + AI 精灵演出。
 > - 战斗结束自动回到当前副本继续探索。三选一初始伙伴改为新用户首登对话引导（首登会先落库初始存档，保证权威接口可用）。
 > - 旧 3D 世界代码（`web/src/game/world3d/`）保留但不再接入主流程；旧的 `_e2e_3d/village/interact` 脚本针对已移除玩法，不再作为回归项。新增 `docs/_e2e_explore.js`（15/15 PASS）。
@@ -19,11 +20,11 @@
 | 层 | 选型 |
 |---|---|
 | 前端 | React 18 + TypeScript + Vite |
-| 3D 渲染 | Three.js + React Three Fiber + Drei（第三人称场景 / 2.5D 广告牌）|
+| 3D 渲染 | Three.js + React Three Fiber + Drei（主面板主角实时 3D 展示 / 第三人称场景 / 2.5D 广告牌）|
 | 后端 | NestJS 10 + TypeScript |
 | 数据库 | MySQL 独立库 `jingling_story`（`STORAGE_MODE=mysql`，可切 `local`）|
 | 共享 | `shared/types.ts` 类型 · `shared/gamedata.ts` 配置 · `shared/rules.ts` 战斗规则 · `shared/quests.ts` 任务 · `shared/maps.ts` 多地图/NPC/商店 · `shared/dungeons.ts` 副本地图与探索判定 |
-| 美术 | AI 立绘（训练师写实立绘、精灵群像裁切、草原地面、天空、村庄场景图 `scene_village.png`、三副本主题图 `scene_meadow/stream/cavern.png`）+ Kenney CC0 3D 场景模型（树木/花草/岩石/商店摊/喷泉/路灯/围栏）+ three.js 官方 MIT 带纹理装甲人物（hero.glb=Soldier，玩家/NPC，Idle/Walk/Run）+ Canvas 2D 战斗特效 |
+| 美术 | AI 立绘（训练师写实立绘、精灵群像裁切、草原地面、天空、村庄场景图 `scene_village.png`、三副本主题图 `scene_meadow/stream/cavern.png`、主角真 3D 模型 `male_ai.glb`/`female_ai.glb`）+ Kenney CC0 3D 场景模型（树木/花草/岩石/商店摊/喷泉/路灯/围栏）+ three.js 官方 MIT 带纹理装甲人物（hero.glb=Soldier，玩家/NPC，Idle/Walk/Run）+ Canvas 2D 战斗特效 |
 | 音效 | Web Audio API 程序化合成（BGM 三曲 + 17 种 SFX，零音频素材 / 零积分），localStorage 记忆静音与音量 |
 | 认证 | 本地测试账号 + JWT（微信 UnionID 登录后补）|
 

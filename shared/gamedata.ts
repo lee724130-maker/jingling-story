@@ -98,6 +98,9 @@ export const ART = {
   trainerFemale: '/art/trainer_female.png',
   trainerMaleHd: '/art/trainer_male_hd.png',
   trainerFemaleHd: '/art/trainer_female_hd.png',
+  // 二次元默认立绘（无球男主 v2 + 女主），标题/对话/选宠/名片统一使用
+  trainerMaleAnime: '/art/trainer_male_anime_v2.png',
+  trainerFemaleAnime: '/art/trainer_female_anime.png',
   spirits: '/art/spirits.png',
   sceneGrass: '/art/scene_grass.png',
   sceneSky: '/art/scene_sky.png',

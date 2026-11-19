@@ -276,6 +276,9 @@ export class GameService {
       return { code: ERR.BAD_PARAMS, message: '副本尚未解锁', data: null };
     }
 
+    // 每次探索记 1 步（新玩法无移动，探索即冒险行动，用于推进"启程"任务）
+    save.profile.steps = (save.profile.steps || 0) + 1;
+
     const rng = seededRandom(dto.seed + 2026);
     const roll = rng();
     let version = row.version;
@@ -317,11 +320,12 @@ export class GameService {
       return { code: ERR.OK, message: 'ok', data: result };
     }
 
-    // 空手而归：不改存档
+    // 空手而归：仅记录步数，不发奖励
+    const written = await store.putSave(uid, version + 1, save);
     const result: ExploreResult = {
       exploreId: dto.exploreId, dungeonId: def.id, kind: 'nothing',
       text: '四处搜寻，但没有发现任何东西……',
-      version, data: row.data
+      version: written.version, data: written.data
     };
     this.explored.set(dto.exploreId, result);
     return { code: ERR.OK, message: 'ok', data: result };

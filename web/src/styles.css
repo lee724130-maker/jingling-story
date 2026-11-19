@@ -99,10 +99,11 @@ body{ font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
 .panel{ background:rgba(8,14,20,.72); }
 .panel-box{ width:88%; max-height:94%; background:var(--panel); border:1px solid var(--line);
   border-radius:16px; overflow:hidden; display:flex; flex-direction:column; margin:auto; }
+.panel-body{ min-height:0; }
 .panel-head{ display:flex; justify-content:space-between; align-items:center; padding:13px 18px; border-bottom:1px solid var(--line); }
 .panel-head h2{ font-size:16px; }
 .iconbtn{ background:none; border:none; color:var(--muted); font-size:24px; cursor:pointer; }
-.panel-body{ padding:16px 18px; overflow:auto; }
+.panel-body{ padding:12px 18px; overflow:auto; }
 .menu-list{ display:flex; flex-direction:column; gap:9px; }
 .menu-item{ text-align:left; padding:12px 15px; border-radius:10px; border:1px solid var(--line);
   background:var(--panel2); color:var(--text); cursor:pointer; font-size:14px; }
@@ -204,6 +205,34 @@ kbd{ display:inline-block; min-width:22px; text-align:center; padding:2px 6px; b
   border-top:1px solid var(--line); font-size:12px; }
 .profile-lead span{ color:var(--muted); } .profile-lead b{ color:var(--text); }
 @media (max-width:560px){ .profile-card{ flex-direction:column; align-items:center; } .profile-info{ width:100%; } }
+
+/* 训练师名片 v2：立绘 + 称号等级 + 战绩 + 出战伙伴 */
+.profile-card-v2{ display:flex; flex-direction:column; gap:7px; }
+.profile-hero{ display:flex; gap:12px; align-items:center; padding:8px 12px;
+  background:linear-gradient(120deg,rgba(95,208,166,.12),rgba(90,169,230,.06));
+  border:1px solid var(--line); border-radius:14px; }
+.profile-hero .profile-portrait-wrap img{ width:92px !important; height:116px !important; object-fit:cover; object-position:top center; }
+.profile-hero .profile-badge{ margin-top:5px; font-size:10px; padding:2px 9px; }
+.profile-identity{ flex:1; min-width:0; }
+.profile-ribbon{ display:inline-block; font-size:10px; font-weight:800; letter-spacing:2px; color:#1b2a24;
+  background:linear-gradient(90deg,#7fe0b4,#5fd0a6); padding:2px 12px; border-radius:20px; margin-bottom:6px; }
+.profile-identity h3{ font-size:22px; margin:1px 0 2px; letter-spacing:1px; }
+.profile-sub{ font-size:11px; color:var(--muted); margin-bottom:9px; }
+.profile-rankbar{ height:8px; background:#2a3749; border-radius:6px; overflow:hidden; border:1px solid var(--line); }
+.profile-rankbar i{ display:block; height:100%; background:linear-gradient(90deg,#5fd0a6,#7fe0b4); transition:width .3s; }
+.profile-rankhint{ font-size:10px; color:var(--muted); margin-top:4px; }
+.profile-section-title{ font-size:11px; font-weight:800; letter-spacing:2px; color:var(--accent);
+  padding-left:10px; border-left:3px solid var(--accent); margin-top:2px; }
+.profile-stats{ grid-template-columns:repeat(3,1fr); gap:6px; }
+.profile-stats>div{ flex-direction:column; align-items:flex-start; gap:2px; padding:7px 9px; }
+.profile-stats span{ font-size:10px; } .profile-stats b{ font-size:14px; }
+.profile-lead{ gap:10px; padding:8px 11px; margin-top:0; background:var(--panel2);
+  border:1px solid var(--line); border-radius:10px; }
+.profile-lead-meta{ display:flex; flex-direction:column; gap:2px; flex:1; }
+.profile-lead-meta b{ font-size:13px; color:var(--text); }
+.profile-lead-meta span{ font-size:10px; color:var(--muted); }
+.profile-lead-hp{ font-size:10px; color:var(--accent2); }
+@media (max-width:560px){ .profile-hero{ flex-direction:column; text-align:center; } .profile-identity{ text-align:center; } .profile-stats{ grid-template-columns:repeat(2,1fr); } }
 /* 商店 */
 .shop-lead{ font-size:12px; color:var(--muted); margin-bottom:12px; }
 .shop-count{ display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); margin-bottom:12px; }

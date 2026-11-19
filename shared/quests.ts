@@ -31,7 +31,7 @@ export const QUESTS: QuestDef[] = [
   {
     id: 'first_steps', stage: 1,
     title: '启程的第一步',
-    desc: '在草原上移动 30 步',
+    desc: '在副本中探索 30 次',
     goal: 30,
     progress: (s) => s.profile.steps,
     reward: { coins: 30 }

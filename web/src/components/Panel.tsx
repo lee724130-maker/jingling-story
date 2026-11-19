@@ -21,25 +21,42 @@ export default function Panel({ name, save, onClose, onNavigate }: {
       const caught = save.pokedex.caught.length, seen = save.pokedex.seen.length;
       const total = Object.keys(MONSTERS).length;
       const lead = save.team[0];
-      return <div className="profile-card">
-        <div className="profile-portrait-wrap">
-          <TrainerPortrait gender={save.profile.gender} size={200} title="你的训练师形象" />
-          <div className="profile-badge">{save.profile.gender === 'female' ? '♀ 女训练师' : '♂ 男训练师'}</div>
+      const wins = save.profile.wins || 0;
+      // 冒险等级由胜场推导：每胜 3 场升 1 级，当前级内进度用于进度条
+      const rank = Math.floor(wins / 3) + 1;
+      const rankPct = ((wins % 3) / 3) * 100;
+      const winRate = save.profile.battles > 0 ? Math.round(wins / save.profile.battles * 100) : 0;
+      const dexPct = total > 0 ? Math.round(caught / total * 100) : 0;
+      const title = rank >= 10 ? '传奇训练师' : rank >= 6 ? '精英训练师' : rank >= 3 ? '资深训练师' : '见习训练师';
+      return <div className="profile-card-v2">
+        <div className="profile-hero">
+          <div className="profile-portrait-wrap">
+            <TrainerPortrait gender={save.profile.gender} size={92} title="你的训练师形象" />
+            <div className="profile-badge">{save.profile.gender === 'female' ? '♀ 女训练师' : '♂ 男训练师'}</div>
+          </div>
+          <div className="profile-identity">
+            <div className="profile-ribbon">{title}</div>
+            <h3>{save.profile.name}</h3>
+            <div className="profile-sub">精灵物语 · 第 {rank} 级冒险者</div>
+            <div className="profile-rankbar"><i style={{ width: rankPct + '%' }} /></div>
+            <div className="profile-rankhint">距下一级还需 {3 - (wins % 3)} 场胜利</div>
+          </div>
         </div>
-        <div className="profile-info">
-          <h3>{save.profile.name}</h3>
-          <div className="profile-sub">精灵物语 · 冒险者</div>
-          <div className="profile-stats">
-            <div><span>冒险步数</span><b>{save.profile.steps}</b></div>
-            <div><span>对战次数</span><b>{save.profile.battles}</b></div>
-            <div><span>胜场</span><b>{save.profile.wins}</b></div>
-            <div><span>当前队伍</span><b>{save.team.length}/6</b></div>
-            <div><span>图鉴遇见</span><b>{seen}/{total}</b></div>
-            <div><span>图鉴捕获</span><b>{caught}/{total}</b></div>
-          </div>
-          <div className="profile-lead">
-            {lead ? <><span>出战伙伴</span><MonThumb species={lead.species} size={48} /><b>{MONSTERS[lead.species].name} Lv.{lead.level}</b></> : <span>尚未选择初始伙伴</span>}
-          </div>
+        <div className="profile-section-title">冒险战绩</div>
+        <div className="profile-stats">
+          <div><span>⚔ 胜场</span><b>{wins}</b></div>
+          <div><span>⚑ 对战</span><b>{save.profile.battles}</b></div>
+          <div><span>✦ 胜率</span><b>{winRate}%</b></div>
+          <div><span>◈ 灵石</span><b>{save.resources.coins}</b></div>
+          <div><span>▤ 图鉴捕获</span><b>{caught}/{total}</b></div>
+          <div><span>◉ 图鉴完成度</span><b>{dexPct}%</b></div>
+        </div>
+        <div className="profile-section-title">出战伙伴</div>
+        <div className="profile-lead">
+          {lead ? <><MonThumb species={lead.species} size={56} />
+            <div className="profile-lead-meta"><b>{MONSTERS[lead.species].name}</b><span>Lv.{lead.level} · {lead.nature} · {lead.gender === 'male' ? '♂' : '♀'}</span></div>
+            <span className="profile-lead-hp">HP {Math.max(0, lead.hp)}/{lead.maxHp}</span></>
+            : <span>尚未选择初始伙伴</span>}
         </div>
       </div>;
     }

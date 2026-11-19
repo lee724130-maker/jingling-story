@@ -2,9 +2,9 @@ import React from 'react';
 import type { Gender } from '@shared/types';
 import { ART } from '../game/config';
 
-/** 写实训练师立绘（AI 图生方案 ③：用作对话头像/选宠/训练师名片，游戏内第三人称仍用 Soldier 3D 模型） */
+/** 二次元训练师默认立绘（无球男主 v2 / 女主），用于标题/对话/选宠/名片 */
 export function portraitOf(gender: Gender): string {
-  return gender === 'female' ? ART.trainerFemaleHd : ART.trainerMaleHd;
+  return gender === 'female' ? ART.trainerFemaleAnime : ART.trainerMaleAnime;
 }
 
 export default function TrainerPortrait({ gender, size = 96, className = '', title }: {

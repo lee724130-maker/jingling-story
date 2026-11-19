@@ -397,6 +397,7 @@ export default function App() {
             onExplore={() => setStage('dungeons')}
             onNavigate={(n) => {
               if (n === 'quest') { setQuestOpen(true); return; }
+              if (n === 'shop') { setShopOpen(true); return; }
               setPanel(n);
             }} />}
 
@@ -421,6 +422,7 @@ export default function App() {
           {panel && (stage === 'home' || stage === 'dungeons' || stage === 'dungeon') && engSave &&
             <Panel name={panel} save={engSave} onClose={() => setPanel(null)} onNavigate={(n) => {
               if (n === 'quest') { setPanel(null); setQuestOpen(true); }
+              else if (n === 'shop') { setPanel(null); setShopOpen(true); }
               else setPanel(n);
             }} />}
 

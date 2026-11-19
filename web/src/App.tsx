@@ -377,13 +377,15 @@ export default function App() {
         </div></div>
         <div className="topbar-right">
           {(stage === 'home' || stage === 'dungeons' || stage === 'dungeon') && <span className="badge">存档 v{version} · MySQL</span>}
-          {(stage === 'home' || stage === 'dungeons' || stage === 'dungeon') &&
-            <button className="tbtn menu-toggle" onClick={() => setPauseOpen(true)} title="暂停菜单（Esc）" aria-label="打开暂停菜单">☰ 菜单</button>}
         </div>
       </header>
 
       <div className="stage">
         <div className={'frame' + (stage === 'home' ? ' home' : '') + (stage === 'dungeons' ? ' dungeons' : '') + (inBattle ? ' battle-bg-wrap' : '')}>
+          {/* 菜单按钮：游戏画面内右上角 */}
+          {(stage === 'home' || stage === 'dungeons' || stage === 'dungeon') && !inBattle &&
+            <button className="menu-toggle menu-in-frame" onClick={() => setPauseOpen(true)} title="暂停菜单（Esc）" aria-label="打开暂停菜单">☰</button>}
+
           {/* 战斗背景：复用副本 AI 场景图 */}
           {inBattle && <div className="battle-bg" style={{ backgroundImage: 'url(/art/scene_grass.png)' }} />}
 
@@ -411,7 +413,7 @@ export default function App() {
 
           {(stage === 'dungeons' || stage === 'dungeon') && !inBattle && engSave && engineState &&
             <Hud save={engSave} mapName={stage === 'dungeon' ? undefined : '精灵物语'}
-              claimable={claimableCount(engSave)} onOpenQuest={() => setQuestOpen(true)} />}
+              claimable={claimableCount(engSave)} onOpenQuest={() => setQuestOpen(true)} showControls={false} />}
 
           {inBattle && engineState?.battle && <BattleUI battle={engineState.battle} onAction={battleAction}
             onSwitch={switchAlly} save={engSave!} />}

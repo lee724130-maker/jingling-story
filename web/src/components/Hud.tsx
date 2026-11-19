@@ -4,8 +4,8 @@ import { audio } from '../game/audio';
 
 const VOL_STEPS = [0.3, 0.6, 1];
 
-export default function Hud({ save, claimable = 0, onOpenQuest, mapName }: {
-  save: SaveData; claimable?: number; onOpenQuest?: () => void; mapName?: string;
+export default function Hud({ save, claimable = 0, onOpenQuest, mapName, showControls = true }: {
+  save: SaveData; claimable?: number; onOpenQuest?: () => void; mapName?: string; showControls?: boolean;
 }) {
   const [muted, setMuted] = useState(audio.muted);
   const [volIdx, setVolIdx] = useState(() => {
@@ -34,17 +34,19 @@ export default function Hud({ save, claimable = 0, onOpenQuest, mapName }: {
       <div className="hud-right">
         <span className="chip coin">◈ {save.resources.coins}</span>
         <span className="chip">{save.profile.name} · Lv.{save.team[0]?.level || 1}</span>
-        <button className="chip hud-audio" onClick={toggleMute}
-          title={muted ? '开启声音' : '静音'} aria-label={muted ? '开启声音' : '静音'}>
-          {muted ? '🔇' : '🔊'}
-        </button>
-        <button className="chip hud-audio hud-vol" onClick={cycleVolume}
-          title={`音量 ${Math.round(VOL_STEPS[volIdx] * 100)}%（点击切换）`} aria-label="切换音量">
-          {'▮'.repeat(volIdx + 1)}{'▯'.repeat(VOL_STEPS.length - volIdx - 1)}
-        </button>
-        {onOpenQuest && <button className="chip hud-quest" onClick={onOpenQuest} title="冒险任务">
-          任务{claimable > 0 && <span className="quest-dot" />}
-        </button>}
+        {showControls && <>
+          <button className="chip hud-audio" onClick={toggleMute}
+            title={muted ? '开启声音' : '静音'} aria-label={muted ? '开启声音' : '静音'}>
+            {muted ? '🔇' : '🔊'}
+          </button>
+          <button className="chip hud-audio hud-vol" onClick={cycleVolume}
+            title={`音量 ${Math.round(VOL_STEPS[volIdx] * 100)}%（点击切换）`} aria-label="切换音量">
+            {'▮'.repeat(volIdx + 1)}{'▯'.repeat(VOL_STEPS.length - volIdx - 1)}
+          </button>
+          {onOpenQuest && <button className="chip hud-quest" onClick={onOpenQuest} title="冒险任务">
+            任务{claimable > 0 && <span className="quest-dot" />}
+          </button>}
+        </>}
       </div>
     </div>
   );

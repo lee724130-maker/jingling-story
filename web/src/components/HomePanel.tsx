@@ -29,7 +29,7 @@ export default function HomePanel({ save, onExplore, onNavigate, claimable }: {
     {/* 场景顶部：欢迎语（轻量，不遮挡画面） */}
     <div className="scene-greeting">
       <div className="scene-hi">青芽村 · {save.profile.name}</div>
-      <div className="scene-line">点击场景中的物件开始冒险 · 右上角☰打开菜单</div>
+      <div className="scene-line">点击场景中的物件开始冒险</div>
     </div>
 
     {/* 场景底部信息条：纯展示，操作按钮已移入右上角暂停菜单 */}
@@ -38,7 +38,6 @@ export default function HomePanel({ save, onExplore, onNavigate, claimable }: {
       <span>⚑ {save.profile.wins} 胜</span>
       {lead && <span className="scene-lead">{MONSTERS[lead.species].name} Lv.{lead.level}
         <i style={{ color: TYPES[MONSTERS[lead.species].type].color }}>●</i></span>}
-      <span className="scene-status-hint">☰ 菜单</span>
     </div>
 
     {/* 可点击热点 */}

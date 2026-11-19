@@ -95,10 +95,11 @@ function check(name, cond, extra) { R.push({ name, pass: !!cond, extra }); conso
   // 走完欢迎对话
   for (let i = 0; i < 8; i++) { const d = await page2.$('.dialog'); if (!d) break; await d.click(); await sleep(120); }
   await sleep(300);
-  await page2.keyboard.press('Escape');
+  // 打开右上角暂停菜单
+  await page2.click('.menu-toggle');
   await sleep(300);
-  // 点训练师名片入口
-  const items = await page2.$$('.menu-item');
+  // 点训练师名片入口（暂停菜单里的功能项）
+  const items = await page2.$$('.pause-entry');
   for (const it of items) { const t = await it.textContent(); if (t && t.includes('训练师名片')) { await it.click(); break; } }
   await sleep(400);
   const profileCard = await page2.evaluate(() => {

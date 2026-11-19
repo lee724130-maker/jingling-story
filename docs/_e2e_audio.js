@@ -68,24 +68,28 @@ function check(name, cond, extra) { R.push({ name, pass: !!cond, extra }); conso
     check('BGM 调度器运行（无异常）', advanced);
   }
 
-  // 5) 静音开关：点击后 muted=true 且 localStorage 持久化
-  await page.click('.hud-audio');
+  // 5) 静音开关：打开右上角暂停菜单后点击设置项
+  await page.click('.menu-toggle');
+  await sleep(200);
+  await page.click('.pause-setting.hud-audio');
   await sleep(150);
   const muted1 = await page.evaluate(() => ({ m: window.__audio.muted, ls: localStorage.getItem('jingling_audio_muted') }));
   check('静音开关生效并持久化', muted1.m === true && muted1.ls === '1', muted1);
 
   // 6) 再次点击取消静音
-  await page.click('.hud-audio');
+  await page.click('.pause-setting.hud-audio');
   await sleep(150);
   const muted2 = await page.evaluate(() => ({ m: window.__audio.muted, ls: localStorage.getItem('jingling_audio_muted') }));
   check('取消静音生效并持久化', muted2.m === false && muted2.ls === '0', muted2);
 
   // 7) 音量档位切换
   const volBefore = await page.evaluate(() => window.__audio.volume);
-  await page.click('.hud-vol');
+  await page.click('.pause-setting.hud-vol');
   await sleep(120);
   const volAfter = await page.evaluate(() => window.__audio.volume);
   check('音量档位切换生效', volBefore !== volAfter, { volBefore, volAfter });
+  await page.click('.pause-head .iconbtn'); // 关闭暂停菜单
+  await sleep(150);
 
   // 8) 各类音效触发不抛错（遍历所有已定义音效名）
   const sfxRes = await page.evaluate(() => {

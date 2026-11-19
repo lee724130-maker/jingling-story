@@ -23,6 +23,7 @@ import Toast from './components/Toast';
 import HomePanel from './components/HomePanel';
 import DungeonSelect from './components/DungeonSelect';
 import DungeonScene from './components/DungeonScene';
+import PauseMenu from './components/PauseMenu';
 import { portraitOf } from './components/TrainerPortrait';
 
 /**
@@ -57,6 +58,7 @@ export default function App() {
   const [claiming, setClaiming] = useState<string | null>(null);
   const [starterOpen, setStarterOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
+  const [pauseOpen, setPauseOpen] = useState(false);
   const [choosing, setChoosing] = useState(false);
   const [buying, setBuying] = useState(false);
   const [dialogDone, setDialogDone] = useState<(() => void) | null>(null);
@@ -213,12 +215,21 @@ export default function App() {
       setDialog(d => d.slice(1));
     };
     const down = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { setPanel(p => p ? null : 'menu'); return; }
+      if (e.key === 'Escape') {
+        // 优先关子面板/对话框，否则切换暂停菜单
+        if (dialog.length) return;
+        if (panel) { setPanel(null); return; }
+        if (questOpen) { setQuestOpen(false); return; }
+        if (shopOpen) { setShopOpen(false); return; }
+        if (starterOpen) return;
+        setPauseOpen(p => !p);
+        return;
+      }
       if ((e.key === 'Enter' || e.key === ' ') && dialog.length) { e.preventDefault(); advanceDialog(); return; }
     };
     window.addEventListener('keydown', down);
     return () => window.removeEventListener('keydown', down);
-  }, [dialog.length, dialogDone]);
+  }, [dialog.length, dialogDone, panel, questOpen, shopOpen, starterOpen]);
 
   const handleLogin = async (username: string, gender: Gender) => {
     try {
@@ -242,6 +253,22 @@ export default function App() {
         setDialogDone(() => () => setStarterOpen(true));
       }
     } catch (e: any) { showToast('登录失败: ' + e.message); }
+  };
+
+  // 退出登录：先落盘当前存档，再清 token 回标题页
+  const handleExit = async () => {
+    try {
+      const eng = engineRef.current;
+      if (eng) await api.submitSave(eng.version, eng.save);
+    } catch { /* 存档失败也允许退出 */ }
+    api.logout();
+    engineRef.current = null;
+    saveRef.current = null;
+    setEngineState(null);
+    setStage('title');
+    setPanel(null); setPauseOpen(false); setQuestOpen(false); setShopOpen(false);
+    setDialog([]); setDialogDone(null);
+    audio.setBgm('village');
   };
 
   const battleAction = (action: any, idx?: number) => engineRef.current?.battleAction(action, idx);
@@ -350,7 +377,8 @@ export default function App() {
         </div></div>
         <div className="topbar-right">
           {(stage === 'home' || stage === 'dungeons' || stage === 'dungeon') && <span className="badge">存档 v{version} · MySQL</span>}
-          {(stage === 'dungeons' || stage === 'dungeon') && <button className="tbtn" onClick={() => { setPanel('save'); }}>存档</button>}
+          {(stage === 'home' || stage === 'dungeons' || stage === 'dungeon') &&
+            <button className="tbtn menu-toggle" onClick={() => setPauseOpen(true)} title="暂停菜单（Esc）" aria-label="打开暂停菜单">☰ 菜单</button>}
         </div>
       </header>
 
@@ -402,6 +430,13 @@ export default function App() {
 
           {shopOpen && engSave && <ShopPanel save={engSave}
             onBuy={handleBuy} buying={buying} onClose={() => setShopOpen(false)} />}
+
+          {pauseOpen && engSave && <PauseMenu save={engSave}
+            onClose={() => setPauseOpen(false)}
+            onNavigate={(n) => { if (n === 'quest') { setQuestOpen(true); return; } setPanel(n); }}
+            onOpenQuest={() => setQuestOpen(true)}
+            onOpenShop={() => setShopOpen(true)}
+            onExit={handleExit} />}
 
           {dialog.length > 0 && <Dialog lines={dialog} onNext={() => setDialog(d => d.slice(1))}
             portrait={portraitOf(engSave?.profile.gender || 'male')}

@@ -54,8 +54,10 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   const saved = await page.evaluate(() => window.__game.version);
   console.log('SAVED_VERSION', saved);
 
-  // 打开任务面板（右上角"任务"按钮）
-  await page.click('.hud-quest');
+  // 打开任务面板（右上角☰菜单 → 任务入口）
+  await page.click('.menu-toggle');
+  await sleep(200);
+  await page.click('.pause-entry.hud-quest');
   await sleep(400);
   const panelInfo = await page.evaluate(() => ({
     cards: document.querySelectorAll('.quest-card').length,

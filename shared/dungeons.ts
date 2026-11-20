@@ -3,7 +3,7 @@
  * 探索判定与物品发放由服务端按种子权威结算；遭遇精灵只返回种类/等级，进战斗后走原有结算。
  * 场景图：各副本独立 AI 主题图（scene_meadow/scene_stream/scene_cavern），与主面板村庄图风格统一。 */
 
-export type DungeonId = 'meadow' | 'stream' | 'cavern';
+export type DungeonId = 'meadow' | 'stream' | 'cavern' | 'glacier' | 'volcano';
 
 export interface DungeonDef {
   id: DungeonId;
@@ -80,14 +80,51 @@ export const DUNGEONS: Record<DungeonId, DungeonDef> = {
       { item: 'ball', min: 2, max: 3, w: 33 },
       { item: 'herb', min: 2, max: 3, w: 25 }
     ],
-    unlockFlag: 'quest:win_5:claimed'
+    unlockFlag: 'quest:veteran:claimed'
+  },
+  glacier: {
+    id: 'glacier', name: '霜寒冰原', subtitle: '秘境区 · Lv.21-30',
+    desc: '群山深处的永冻之地，冰晶折射出奇异的光。寒泉中栖息着罕见的冰晶兽。',
+    bg: ART.sceneGlacier, accent: '#7dd8f5',
+    encounters: [
+      { species: 15, w: 20 }, { species: 16, w: 14 }, { species: 3, w: 12 },
+      { species: 4, w: 10 }, { species: 9, w: 10 }, { species: 10, w: 8 },
+      { species: 12, w: 8 }, { species: 8, w: 8 }, { species: 11, w: 6 },
+      { species: 14, w: 4 }
+    ],
+    level: [21, 30],
+    rates: { monster: 0.60, item: 0.28, nothing: 0.12 },
+    items: [
+      { item: 'coins', min: 45, max: 85, w: 40 },
+      { item: 'herb', min: 2, max: 4, w: 33 },
+      { item: 'ball', min: 3, max: 5, w: 27 }
+    ],
+    unlockFlag: 'quest:trainer:claimed'
+  },
+  volcano: {
+    id: 'volcano', name: '熔火山地', subtitle: '终极区 · Lv.31-40',
+    desc: '沸腾的火山腹地，熔岩间游走着烈焰的身影。只有真正的训练师才能征服这里。',
+    bg: ART.sceneVolcano, accent: '#ff7a4d',
+    encounters: [
+      { species: 13, w: 20 }, { species: 14, w: 16 }, { species: 17, w: 12 },
+      { species: 18, w: 10 }, { species: 2, w: 10 }, { species: 8, w: 8 },
+      { species: 10, w: 8 }, { species: 12, w: 8 }, { species: 6, w: 8 }
+    ],
+    level: [31, 40],
+    rates: { monster: 0.62, item: 0.27, nothing: 0.11 },
+    items: [
+      { item: 'coins', min: 70, max: 130, w: 42 },
+      { item: 'ball', min: 4, max: 6, w: 33 },
+      { item: 'herb', min: 3, max: 5, w: 25 }
+    ],
+    unlockFlag: 'quest:collector:claimed'
   }
 };
 
 export const DUNGEON_LIST = Object.values(DUNGEONS);
 
 export function isDungeonId(v: string): v is DungeonId {
-  return v === 'meadow' || v === 'stream' || v === 'cavern';
+  return v === 'meadow' || v === 'stream' || v === 'cavern' || v === 'glacier' || v === 'volcano';
 }
 
 /** 副本是否解锁（按存档 flags 判定） */

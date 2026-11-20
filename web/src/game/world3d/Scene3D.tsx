@@ -139,7 +139,9 @@ function Npcs({ engine, mapId }: { engine: GameEngine; mapId: MapId }) {
 function Follower({ engine }: { engine: GameEngine }) {
   const group = useRef<THREE.Group>(null);
   const species = engine.save.team[0]?.species || 1;
-  const tex = useBillboardTexture(ART.spirits, 'white', SPIRIT_CELL[species] || [0, 0]);
+  // SPIRIT_CELL 现为 [col,row,sheet]，旧 3D 玩法只用初代图集，取前两项
+  const cell = SPIRIT_CELL[species] || [0, 0, 0];
+  const tex = useBillboardTexture(ART.spirits, 'white', [cell[0], cell[1]]);
   useFrame(({ clock }) => {
     if (!group.current) return;
     const p = engine.state.player;
@@ -157,7 +159,8 @@ function Follower({ engine }: { engine: GameEngine }) {
 /** 野怪：AI 精灵广告牌 + 浮动 + 头顶感叹号；点击后自动走向它 */
 function WildMonster({ wild, engine }: { wild: WildSpirit; engine: GameEngine }) {
   const group = useRef<THREE.Group>(null);
-  const tex = useBillboardTexture(ART.spirits, 'white', SPIRIT_CELL[wild.species] || [0, 0]);
+  const wildCell = SPIRIT_CELL[wild.species] || [0, 0, 0];
+  const tex = useBillboardTexture(ART.spirits, 'white', [wildCell[0], wildCell[1]]);
   useFrame(({ clock }) => {
     if (!group.current) return;
     const [x, z] = pxToWorld(wild.x, wild.y);

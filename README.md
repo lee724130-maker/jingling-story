@@ -4,7 +4,7 @@
 
 **GitHub 仓库**：https://github.com/lee724130-maker/jingling-story （私有）
 
-当前阶段：**手游式主面板 + 副本探索版（v2）+ 服务端权威探索判定 + 回合制战斗/AI 精灵演出**（阶段 1/2/4 部分完成），React + TypeScript 前端 / NestJS 后端联调 Demo。
+当前阶段：**手游式主面板 + 副本探索版（v2）+ 服务端权威探索判定 + 回合制战斗/AI 精灵演出 + 第二世代内容扩充**（阶段 1/2/4 部分完成），React + TypeScript 前端 / NestJS 后端联调 Demo。
 
 > **v2 玩法改版（2026-11-18）**：应老板要求，已**完全移除第三人称 3D 世界**（WASD 走动 / 可见野怪 / 点地面寻路），改为手游式主面板玩法：
 > `登录 → 主面板（**村庄场景图 + 可点击地标热点**）→ 探索 → 选副本（微风草原 / 潺潺溪谷 / 回声岩洞）→ 静态场景点右下角「探索」→ 概率遇到精灵/物品 → 遇精灵进战斗`。
@@ -16,6 +16,7 @@
 > - 探索判定由**服务端按种子权威结算**（`POST /api/game/explore`，校验和 + exploreId 幂等 + 副本解锁校验），免费无限探索、纯概率；物品直接发到权威存档，遇敌只返回种类/等级，战斗沿用原有回合制 + AI 精灵演出。
 > - 战斗结束自动回到当前副本继续探索。三选一初始伙伴改为新用户首登对话引导（首登会先落库初始存档，保证权威接口可用）。
 > - 旧 3D 世界代码（`web/src/game/world3d/`）保留但不再接入主流程；旧的 `_e2e_3d/village/interact` 脚本针对已移除玩法，不再作为回归项。新增 `docs/_e2e_explore.js`（15/15 PASS）。
+> - **第二世代内容扩充（2026-11-20，P0）**：物种 12→18（3 条新进化链 + 3 高阶技能），副本 3→5（新增霜寒冰原 / 熔火山地），图鉴大师目标 8→12，修复回声岩洞解锁标记 bug。新精灵走独立图集 `spirits2.png`（上排基础 / 下排进化各占一格）。素材由 **Agnes 双线（国内站 + 国际站）**生成，并用并发调度跨站并行生产（基准 1.99x 加速）。详见下方「内容扩充」章节与「验证」章节。
 
 ## 技术栈
 
@@ -26,7 +27,7 @@
 | 后端 | NestJS 10 + TypeScript |
 | 数据库 | MySQL 独立库 `jingling_story`（`STORAGE_MODE=mysql`，可切 `local`）|
 | 共享 | `shared/types.ts` 类型 · `shared/gamedata.ts` 配置 · `shared/rules.ts` 战斗规则 · `shared/quests.ts` 任务 · `shared/maps.ts` 多地图/NPC/商店 · `shared/dungeons.ts` 副本地图与探索判定 |
-| 美术 | AI 立绘（训练师写实立绘、精灵群像裁切、草原地面、天空、村庄场景图 `scene_village.png`、三副本主题图 `scene_meadow/stream/cavern.png`）+ Kenney CC0 3D 场景模型（树木/花草/岩石/商店摊/喷泉/路灯/围栏）+ three.js 官方 MIT 带纹理装甲人物（hero.glb=Soldier，玩家/NPC，Idle/Walk/Run）+ Canvas 2D 战斗特效 |
+| 美术 | AI 立绘（训练师写实立绘、精灵群像裁切、草原地面、天空、村庄场景图 `scene_village.png`、三副本主题图 `scene_meadow/stream/cavern.png`、第二世代精灵群像 `spirits2.png`、新副本图 `scene_glacier/volcano.png`）+ Kenney CC0 3D 场景模型（树木/花草/岩石/商店摊/喷泉/路灯/围栏）+ three.js 官方 MIT 带纹理装甲人物（hero.glb=Soldier，玩家/NPC，Idle/Walk/Run）+ Canvas 2D 战斗特效 |
 | 音效 | Web Audio API 程序化合成（BGM 三曲 + 17 种 SFX，零音频素材 / 零积分），localStorage 记忆静音与音量 |
 | 认证 | 本地测试账号 + JWT（微信 UnionID 登录后补）|
 
@@ -43,12 +44,12 @@
 │       │   ├── sprites.ts     # 2D Canvas 动作绘制层
 │       │   ├── config.ts      # 转发 @shared/gamedata
 │       │   └── model.ts       # 复用 @shared/rules 建精灵
-│       ├── public/art/        # AI 素材：trainer_male/female / spirits / scene_grass / scene_sky
+│       ├── public/art/        # AI 素材：trainer_* 立绘 / spirits+spirits2 群像 / scene_* 场景图
 │       └── public/models/     # nature/（树花草岩石）+ town/（摊/喷泉/路灯/围栏，含 colormap.png）+ characters/（hero.glb 骨骼动画人物，MIT）
-├── server/      # NestJS 后端（端口 3000）
+├── server/      # NestJS 后端（端口 3001）
 │   └── src/{auth,player,game,common}
-├── shared/      # 前后端共享：types / gamedata / rules / quests / maps
-└── docs/        # MySQL 配置、E2E 脚本、AI 素材生成脚本
+├── shared/      # 前后端共享：types / gamedata / rules / quests / maps / dungeons
+└── docs/        # MySQL 配置、E2E 脚本、内容校验、Agnes 双线生图脚本
 ```
 
 ## 本地运行
@@ -110,6 +111,7 @@ Vite 已配 `/api` 代理到后端 **3001**（端口 3000 被 AI Anime 主项目
 - **动作效果**：训练师走动摆臂踏步、野怪浮动/警戒跳、战斗精灵待机浮动/攻击前冲/受击抖动/治疗放大、捕捉球飞行摇晃与收进球发光
 - 回合制战斗：技能/属性克制/本系加成、灵兽球捕获、活力草回血、逃跑
 - **服务端权威结算**：伤害/捕获率/经验/升级/进化规则集中在 `shared/rules.ts` 前后端共用；金币、经验、升级、进化、捕获判定、道具消耗全部由服务端读取权威存档重算并写回，客户端只上报战斗上下文+随机种子；带 checksum 校验（篡改返 3002）、幂等键防重复结算（3003）、合理性校验（非法等级返 3001）；网络失败时降级本地计算
+- **内容扩充（第二世代，2026-11-20）**：物种 12→18，新增 3 条进化链（焰尾兽 Lv22→烈焰狮 / 冰晶兽 Lv22→冰川兽 / 影叶兽 Lv24→古树兽）与 3 个高阶技能（炼狱/怒涛/森罗）；副本 3→5，新增霜寒冰原（Lv.21-30，Lv.10 任务解锁）与熔火山地（Lv.31-40，图鉴大师解锁）；图鉴大师目标 8→12。新精灵群像走独立图集 `spirits2.png`（`SPIRIT_SHEETS` + `SPIRIT_CELL` 第三位 sheet 索引），战斗/头像/图鉴自动接入。
 - 成长：经验、升级、进化；**捕获时精灵性别与性格随机**（由服务端种子生成）
 - 图鉴（已见/已捕获分状态）、队伍、背包、菜单面板；精灵头像用 AI 群像裁切
 - 存档经 API 存服务端，version 乐观锁（冲突返回 2001 并同步最新存档）
@@ -153,6 +155,13 @@ Vite 已配 `/api` 代理到后端 **3001**（端口 3000 被 AI Anime 主项目
 - `docs/_e2e_interact.js`：点击交互 E2E（11 项全过：hero.glb 3D 人物加载 / 点击寻路位移 / 小跑快于走路(固定30帧) / 四方向朝向角度 / Shift 切换 / 点 NPC 交互 / 真实鼠标点地面寻路 / 零错误）
 - `docs/_e2e_audio.js`：音频系统 E2E（10 项全过：audio 钩子挂载 / 用户手势解锁 AudioContext / 初始村庄 BGM / 调度器排音符 / 静音开关+持久化 / 取消静音 / 音量档位 / 17 种音效无异常 / 战斗切换 BGM / 零错误）
 - `docs/_e2e_portrait.js`：二次元立绘 E2E（7 项全过：标题男主立绘 / 切换女主图 / 对话头像 / 选宠界面立绘 / 训练师名片立绘+6项战绩+等级称号 / 立绘资源 200 / 零错误）
+- `docs/_content_check.js`：**数据一致性静态校验（15/15 PASS）**：18 物种连续 / 技能引用闭合 / 进化链目标存在 / 图集映射覆盖且格子合法（第二世代 6 只各占独立格）/ 5 副本配置（概率和为 1、遭遇物种存在、解锁标记指向真实任务）/ cavern 解锁 bug 已修 / 图鉴目标 12
+- `docs/_e2e_newcontent.js`：**新内容专项 E2E（6/6 PASS）**：注入新物种图鉴存档 → 图鉴总数 18 → 6 只新精灵显示名称 → 头像来自 `spirits2.png` 且各裁自不同格（`background-position` 6 个不同值）→ 零错误
+- `docs/_gen_new_content.js`：**正式生图脚本（双线并发版，推荐）**：走 `_agnes_dual` 的 `generateBatch`，多张图轮询分流到两站**跨站并行**（站内串行防限流），单任务失败自动切备站。`LINE=intl|cn` 可强制单站，默认双站并发
+- `docs/_agnes_dual.js`：**Agnes 双线客户端**：封装国内站（`api.agnes-ai.cn`）+ 国际站（`apihub.agnes-ai.com`），两站均为 OpenAI 兼容格式。提供 `generate`/`generateTo`/`generateBatch`/`download`，`generate` 的 line 支持 `intl`/`cn`/`auto`。两站独立账号独立配额，`auto` 容灾 + 配额叠加；单张图是原子请求不分片，**批量提速来自多任务跨站并行**。基准实测：4 张图单站串行 49.3s vs 双站并行 24.8s（**1.99x 加速**）
+- `docs/_bench_parallel.js`：并发加速基准测试（对比单站串行 vs 双站并行耗时）
+- `docs/_gen_new_content_intl.js`：国际站单线版（早期脚本，保留参考）
+- `docs/_visual_verify.js`：视觉验收截图脚本（图鉴面板新精灵 + 副本选择页新场景图）
 
 ## AI 写实人物模型试验（已定案：方案③ 静态立绘落地）
 
@@ -170,13 +179,15 @@ Vite 已配 `/api` 代理到后端 **3001**（端口 3000 被 AI Anime 主项目
 > 详细优先级见上级目录规划文档 `类宝可梦小游戏-开发规划文档.md` 第 11.7 节。11-18 完成 v2 玩法改版 + 主面板场景化，11-19 完成清单第 1 项「场景化体验补全」（三副本独立主题场景图 + 副本选择/场景页场景化改造）。
 
 1. ~~**场景化体验补全（P0）**~~ ✅ **已完成（2026-11-19）**：三副本独立 AI 主题图 + 副本选择页横幅/主题卡片 + 场景页底部信息条，视觉与主面板统一。
-2. **内容扩充（P0）**：更多副本 / 精灵 / 进化链（`shared/gamedata.ts`），补充新精灵 AI 立绘。
+2. ~~**内容扩充（P0）**~~ ✅ **已完成（2026-11-20）**：新增 6 只精灵 / 3 条进化链（焰尾兽→烈焰狮、冰晶兽→冰川兽、影叶兽→古树兽）+ 3 个高阶技能；新增 2 个副本（霜寒冰原 Lv.21-30 / 熔火山地 Lv.31-40）；图鉴大师目标 8→12；修复回声岩洞解锁标记 bug。第二世代精灵群像 `spirits2.png` 与两张副本地图已用 **Agnes 双线（国内站 + 国际站）真实生成并验收**（图鉴 6 精灵逐格裁切正确、副本地图加载 200），非占位图。正式生成脚本 `docs/_gen_new_content.js`（双线并发版，凭证走 `server/.env` 的 `AGNES_*` / `AGNES_CN_*`），底层 `docs/_agnes_dual.js` 提供跨站并行调度（基准 1.99x 加速）。
 3. **战斗主画面完整 3D 化（P1）**：当前是 3D 背景 + 2D Canvas 精灵混合。
 4. **主线任务链扩充（P1）**：当前仅"选初始伙伴"一步，村长/向导无后续剧情。
 5. **微信小游戏端 POC（P2）**：Cocos Creator 3.x 重做表现层，详见 `docs/双端适配方案.md`。
 6. **阶段 0 资质（线下）**：注册主体、核实免费小游戏提审是否需版号；真机登录/上架依赖它。
 
-**回归基线**：每次改动后跑 `docs/_e2e_{explore,audio,portrait,battle,settle,quest}.js` 全绿；`_e2e_3d/village/interact` 针对已移除的第三人称玩法，不再作回归项。
+**回归基线**：每次改动后跑 `node docs/_content_check.js` + `docs/_e2e_{explore,newcontent,audio,portrait,battle,settle,quest}.js` 全绿；`_e2e_3d/village/interact` 针对已移除的第三人称玩法，不再作回归项。
+
+**本地联调端口**：`web/vite.config.ts` 把 `/api` 代理到 **3001**，因此后端必须监听 3001。工作区若没有 `server/.env`（该文件被 .gitignore 忽略），`nest start -w server` 的工作目录是项目根，`config.ts` 读的是**根目录** `.env` 而非 `server/.env`——此时后端会默认监听 3000 导致联调 404。解决办法：在根目录放 `.env` 写 `PORT=3001`，或启动时带环境变量 `PORT=3001 STORAGE_MODE=local npm run dev:server`。
 
 ## 说明
 

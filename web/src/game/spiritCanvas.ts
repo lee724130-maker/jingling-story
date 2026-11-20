@@ -2,7 +2,7 @@
  * 思路：按 SPIRIT_CELL 裁出每格，用 flood-fill 从四边抠掉「与边缘连通的纯白背景」，
  * 只抠纯白（r/g/b>240 且接近），保留精灵内部的白色区域（如风羽兽的白羽）。
  * 加载完成后供 drawSpiritSprite 同步取用；未加载时调用方回退程序化绘制。 */
-import { ART, SPIRIT_CELL } from './config';
+import { SPIRIT_SHEETS, SPIRIT_CELL } from './config';
 
 const cache = new Map<number, HTMLCanvasElement>();
 let state: 'idle' | 'loading' | 'ready' | 'failed' = 'idle';
@@ -51,28 +51,34 @@ function cropCell(img: HTMLImageElement, col: number, row: number): HTMLCanvasEl
   return cutout(cell);
 }
 
-/** 预加载群像并裁好所有物种贴图（幂等）。返回 Promise 便于调用方等待。 */
+/** 预加载全部图集并裁好所有物种贴图（幂等）。返回 Promise 便于调用方等待。 */
 export function preloadSpirits(): Promise<void> {
   if (state === 'ready' || state === 'loading') return Promise.resolve();
   state = 'loading';
   return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      try {
-        for (const species of Object.keys(SPIRIT_CELL)) {
-          const sid = Number(species);
-          const [col, row] = SPIRIT_CELL[sid];
-          cache.set(sid, cropCell(img, col, row));
+    let remaining = SPIRIT_SHEETS.length;
+    if (!remaining) { state = 'ready'; resolve(); return; }
+    const done = () => { if (--remaining <= 0) { state = 'ready'; resolve(); } };
+    const imgs: (HTMLImageElement | null)[] = SPIRIT_SHEETS.map(() => null);
+    SPIRIT_SHEETS.forEach((src, sheetIdx) => {
+      const img = new Image();
+      img.onload = () => {
+        imgs[sheetIdx] = img;
+        try {
+          for (const species of Object.keys(SPIRIT_CELL)) {
+            const sid = Number(species);
+            const [col, row, sheet = 0] = SPIRIT_CELL[sid];
+            if (sheet !== sheetIdx || !imgs[sheet]) continue;
+            cache.set(sid, cropCell(imgs[sheet]!, col, row));
+          }
+        } catch (e) {
+          console.warn('spirit cutout failed', e);
         }
-        state = 'ready';
-      } catch (e) {
-        console.warn('spirit cutout failed', e);
-        state = 'failed';
-      }
-      resolve();
-    };
-    img.onerror = () => { state = 'failed'; resolve(); };
-    img.src = ART.spirits;
+        done();
+      };
+      img.onerror = () => { state = 'failed'; done(); };
+      img.src = src;
+    });
   });
 }
 

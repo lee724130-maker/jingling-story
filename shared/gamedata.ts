@@ -39,6 +39,10 @@ export const SKILLS: Record<string, Skill> = {
   avalanche:{ name: '岩崩', type: 'rock',    power: 85, acc: 85,  pp: 10, kind: 'dmg' },
   gust:     { name: '风刃', type: 'wind',    power: 55, acc: 95,  pp: 25, kind: 'dmg' },
   storm:    { name: '风暴', type: 'wind',    power: 85, acc: 85,  pp: 10, kind: 'dmg' },
+  // 高阶技能（内容扩充：新精灵链）
+  inferno:  { name: '炼狱', type: 'fire',    power: 95, acc: 80,  pp: 8,  kind: 'dmg' },
+  torrent:  { name: '怒涛', type: 'water',   power: 95, acc: 80,  pp: 8,  kind: 'dmg' },
+  verdant:  { name: '森罗', type: 'wood',    power: 95, acc: 80,  pp: 8,  kind: 'dmg' },
   heal:     { name: '回春', type: 'normal',  power: 0,  acc: 100, pp: 10, kind: 'heal', value: 0.5 }
 };
 
@@ -59,7 +63,14 @@ export const MONSTERS: Record<number, Species> = {
   9:  { id: 9,  name: '岩仔',   type: 'rock',    base: { hp: 55, atk: 48, def: 62, spd: 35 }, skills: ['tackle','rockfall'],         evolve: { lv: 20, to: 10 }, shape: 'rock',    desc: '喜欢蜷在石堆里睡一整天。' },
   10: { id: 10, name: '岩卫',   type: 'rock',    base: { hp: 85, atk: 72, def: 100,spd: 45 }, skills: ['rockfall','avalanche','tackle'], evolve: null,          shape: 'rock',    desc: '坚硬身躯是同伴最可靠的屏障。' },
   11: { id: 11, name: '风羽兽', type: 'wind',    base: { hp: 46, atk: 54, def: 42, spd: 68 }, skills: ['tackle','gust'],            evolve: { lv: 20, to: 12 }, shape: 'wind',    desc: '羽翼轻盈，能借风滑翔很远。' },
-  12: { id: 12, name: '风翔兽', type: 'wind',    base: { hp: 70, atk: 80, def: 62, spd: 100}, skills: ['gust','storm','tackle'],     evolve: null,               shape: 'wind',    desc: '展翅时气流会卷起地上的花瓣。' }
+  12: { id: 12, name: '风翔兽', type: 'wind',    base: { hp: 70, atk: 80, def: 62, spd: 100}, skills: ['gust','storm','tackle'],     evolve: null,               shape: 'wind',    desc: '展翅时气流会卷起地上的花瓣。' },
+  // —— 第二世代（内容扩充：冰原 / 火山副本专属链）——
+  13: { id: 13, name: '焰尾兽', type: 'fire',    base: { hp: 48, atk: 57, def: 44, spd: 58 }, skills: ['tackle','ember'],            evolve: { lv: 22, to: 14 }, shape: 'flame',   desc: '尾尖的火苗能照亮整条山道。' },
+  14: { id: 14, name: '烈焰狮', type: 'fire',    base: { hp: 74, atk: 92, def: 66, spd: 82 }, skills: ['ember','inferno','blaze','tackle'], evolve: null, shape: 'flame', desc: '鬃毛化作流动的熔岩，威严无比。' },
+  15: { id: 15, name: '冰晶兽', type: 'water',   base: { hp: 52, atk: 46, def: 55, spd: 44 }, skills: ['tackle','bubble'],           evolve: { lv: 22, to: 16 }, shape: 'bubble',  desc: '体内流淌着永不结冰的寒泉。' },
+  16: { id: 16, name: '冰川兽', type: 'water',   base: { hp: 88, atk: 72, def: 98, spd: 50 }, skills: ['bubble','torrent','surge','tackle'], evolve: null, shape: 'bubble', desc: '背脊耸立着万年不化的冰脊。' },
+  17: { id: 17, name: '影叶兽', type: 'wood',    base: { hp: 46, atk: 53, def: 45, spd: 62 }, skills: ['tackle','vine'],             evolve: { lv: 24, to: 18 }, shape: 'leaf',    desc: '藏在树影里，只露出一双亮眼。' },
+  18: { id: 18, name: '古树兽', type: 'wood',    base: { hp: 80, atk: 86, def: 88, spd: 58 }, skills: ['vine','verdant','crush','tackle'], evolve: null, shape: 'leaf', desc: '据说是森林守护者亲手种下的。' }
 };
 
 export const ITEMS = {
@@ -88,7 +99,9 @@ export const ENCOUNTERS = [
   { id: 1, min: 3, max: 6, w: 18 }, { id: 3, min: 3, max: 6, w: 18 },
   { id: 5, min: 4, max: 7, w: 16 }, { id: 7, min: 4, max: 7, w: 14 },
   { id: 9, min: 5, max: 8, w: 12 }, { id: 11, min: 5, max: 8, w: 12 },
-  { id: 2, min: 10, max: 13, w: 4 }, { id: 4, min: 10, max: 13, w: 3 }, { id: 8, min: 10, max: 13, w: 3 }
+  { id: 2, min: 10, max: 13, w: 4 }, { id: 4, min: 10, max: 13, w: 3 }, { id: 8, min: 10, max: 13, w: 3 },
+  { id: 13, min: 14, max: 20, w: 3 }, { id: 15, min: 14, max: 20, w: 3 }, { id: 17, min: 14, max: 20, w: 3 },
+  { id: 14, min: 24, max: 30, w: 2 }, { id: 16, min: 24, max: 30, w: 2 }, { id: 18, min: 24, max: 30, w: 2 }
 ];
 
 export const NATURES = ['勇敢','冷静','活泼','内向','贪吃','耐心','急躁','温柔'];
@@ -107,15 +120,24 @@ export const ART = {
   sceneVillage: '/art/scene_village.png',
   sceneMeadow: '/art/scene_meadow.png',
   sceneStream: '/art/scene_stream.png',
-  sceneCavern: '/art/scene_cavern.png'
+  sceneCavern: '/art/scene_cavern.png',
+  sceneGlacier: '/art/scene_glacier.png',
+  sceneVolcano: '/art/scene_volcano.png'
 };
-export const SPIRIT_CELL: Record<number, [number, number]> = {
-  1: [0,0], 2: [0,0],
-  3: [1,0], 4: [1,0],
-  5: [2,0], 6: [2,0],
-  7: [0,1], 8: [0,1],
-  9: [1,1], 10: [1,1],
-  11: [2,1], 12: [2,1]
+/** 精灵群像图集：sheet 0 = 初代 12 只，sheet 1 = 第二世代 6 只。
+ *  每座图集均为 3 列 × 2 行，AGNES 生成后覆盖同名文件即可，代码零改。 */
+export const SPIRIT_SHEETS = [ART.spirits, '/art/spirits2.png'];
+/** [col, row, sheet]  sheet 省略默认 0（兼容旧写法） */
+export const SPIRIT_CELL: Record<number, [number, number, number?]> = {
+  1: [0,0,0], 2: [0,0,0],
+  3: [1,0,0], 4: [1,0,0],
+  5: [2,0,0], 6: [2,0,0],
+  7: [0,1,0], 8: [0,1,0],
+  9: [1,1,0], 10: [1,1,0],
+  11: [2,1,0], 12: [2,1,0],
+  // 第二世代：新群像 spirits2.png 的 3×2 格（上排基础形态 / 下排进化形态，各占一格）
+  13: [0,0,1], 15: [1,0,1], 17: [2,0,1],
+  14: [0,1,1], 16: [1,1,1], 18: [2,1,1]
 };
 
 export const TILE = 32;

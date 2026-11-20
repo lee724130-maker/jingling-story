@@ -79,8 +79,8 @@ export const QUESTS: QuestDef[] = [
   {
     id: 'collector', stage: 7,
     title: '图鉴大师',
-    desc: '捕获 8 种不同的精灵',
-    goal: 8,
+    desc: '捕获 12 种不同的精灵',
+    goal: 12,
     progress: (s) => s.pokedex.caught.length,
     reward: { coins: 300, ball: 10 }
   }

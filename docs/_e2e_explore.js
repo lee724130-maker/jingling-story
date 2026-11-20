@@ -65,9 +65,11 @@ function checksum(payload) { let h = 5381; for (let i = 0; i < payload.length; i
   const dsel = await page.$('.dungeon-select');
   check('进入副本选择页', !!dsel);
   const cardCount = await page.$$eval('.ds-card', els => els.length);
-  check('显示 3 个副本卡片', cardCount === 3, { cardCount });
+  check('显示 5 个副本卡片（含新增冰原/火山）', cardCount === 5, { cardCount });
+  const cardTitles = await page.$$eval('.ds-card h3', els => els.map(e => e.textContent));
+  check('新增副本霜寒冰原/熔火山地在列表中', cardTitles.includes('霜寒冰原') && cardTitles.includes('熔火山地'), { cardTitles });
   const lockedCount = await page.$$eval('.ds-card.locked', els => els.length);
-  check('存在未解锁副本（进阶/挑战）', lockedCount >= 1, { lockedCount });
+  check('存在未解锁副本（进阶/挑战/秘境/终极）', lockedCount >= 3, { lockedCount });
 
   // 5) 进入第一个副本（微风草原，默认解锁）
   const firstCard = await page.$('.ds-card:not(.locked)');
@@ -106,11 +108,20 @@ function checksum(payload) { let h = 5381; for (let i = 0; i < payload.length; i
     idemDto.clientChecksum = checksum([idemDto.exploreId, idemDto.dungeonId, idemDto.seed].join('|'));
     const first = await post('/api/game/explore', idemDto);
     const second = await post('/api/game/explore', idemDto);
-    // 锁定副本：未解锁应拒绝
+    // 锁定副本：未解锁应拒绝（cavern 前置为 veteran 任务）
     const lockDto = { exploreId: 'e2e_lock_' + Date.now(), dungeonId: 'cavern', seed: 9, clientChecksum: '' };
     lockDto.clientChecksum = checksum([lockDto.exploreId, lockDto.dungeonId, lockDto.seed].join('|'));
     const lockR = await post('/api/game/explore', lockDto);
-    return { results, badCode: badR.code, idemCode1: first.code, idemCode2: second.code, lockCode: lockR.code };
+    // 新增终极副本 volcano 未解锁同样应拒绝
+    const lockDto2 = { exploreId: 'e2e_lock2_' + Date.now(), dungeonId: 'volcano', seed: 9, clientChecksum: '' };
+    lockDto2.clientChecksum = checksum([lockDto2.exploreId, lockDto2.dungeonId, lockDto2.seed].join('|'));
+    const lockR2 = await post('/api/game/explore', lockDto2);
+    // 不存在的副本 id 应拒绝
+    const bogus = { exploreId: 'e2e_bogus_' + Date.now(), dungeonId: 'nope', seed: 9, clientChecksum: '' };
+    bogus.clientChecksum = checksum([bogus.exploreId, bogus.dungeonId, bogus.seed].join('|'));
+    const bogusR = await post('/api/game/explore', bogus);
+    return { results, badCode: badR.code, idemCode1: first.code, idemCode2: second.code,
+      lockCode: lockR.code, lockCode2: lockR2.code, bogusCode: bogusR.code };
   }, token);
 
   check('12 次探索全部成功', apiTest.results.every(x => x.code === 0), { codes: [...new Set(apiTest.results.map(x => x.code))] });
@@ -120,6 +131,8 @@ function checksum(payload) { let h = 5381; for (let i = 0; i < payload.length; i
   check('相同 exploreId 幂等（第二次非 0 或返回同结果）', apiTest.idemCode2 !== 0 || apiTest.idemCode1 === apiTest.idemCode2,
     { first: apiTest.idemCode1, second: apiTest.idemCode2 });
   check('未解锁副本被拒绝', apiTest.lockCode !== 0, { code: apiTest.lockCode });
+  check('新增终极副本未解锁被拒绝', apiTest.lockCode2 !== 0, { code: apiTest.lockCode2 });
+  check('不存在的副本 id 被拒绝', apiTest.bogusCode !== 0, { code: apiTest.bogusCode });
 
   // 7) 通过 UI 点击探索按钮，验证前端流程不报错
   await page.click('.explore-btn');
